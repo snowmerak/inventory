@@ -248,7 +248,7 @@ user: {
     shape: person
 }
 
-admin -> server.api: Publish Item Key
-server.api -> admin: Item Key Published
-user -> server.api: Validate Item Key
-server.api -> user: Item Key Validated
+admin -> server.api.engine: Publish Item Key
+server.api.engine -> admin: Item Key Published
+user -> server.api.engine: Validate Item Key
+server.api.engine -> user: Item Key Validated
