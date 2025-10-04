@@ -187,6 +187,9 @@ server: {
                 expires_at: datetime
                 used_count: integer
                 max_uses: integer
+                ttl: integer {
+                    constraint: [default: 900] # 15 minutes, in seconds
+                }
             }
         }   
 
