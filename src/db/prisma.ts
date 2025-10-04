@@ -34,7 +34,10 @@ export async function disconnectPrisma(): Promise<void> {
 export async function checkMongoHealth(): Promise<boolean> {
   try {
     const client = getPrismaClient()
-    await client.$queryRaw`SELECT 1`
+    // MongoDB does not support $queryRaw, use $connect or simple query instead
+    await client.$connect()
+    // Verify connection with a simple count operation
+    await client.apiKey.count({ take: 1 })
     return true
   } catch (error) {
     console.error('MongoDB health check failed:', error)

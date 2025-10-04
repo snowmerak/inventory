@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import { openapi } from "@elysiajs/openapi";
 
 import { loadEnv } from "./config/env"
 import { getPrismaClient, checkMongoHealth, disconnectPrisma } from "./db/prisma"
@@ -35,6 +36,7 @@ const app = new Elysia()
   })
   .use(createApiRoutes(prisma, redis, env))
   .use(createAdminRoutes(prisma))
+  .use(openapi())
   .listen(env.port);
 
 console.log(

@@ -18,10 +18,11 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "elysia": "latest",
+    "@elysiajs/openapi": "^1.4.11",
     "@prisma/client": "^5.20.0",
-    "ioredis": "^5.4.1",
-    "argon2": "^0.41.1"
+    "argon2": "^0.41.1",
+    "elysia": "latest",
+    "ioredis": "^5.4.1"
   },
   "devDependencies": {
     "bun-types": "latest",
