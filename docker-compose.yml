@@ -36,6 +36,57 @@ services:
       timeout: 5s
       retries: 5
 
+  # Setup job - runs once to initialize database
+  setup:
+    image: mongo:7
+    container_name: inventory-setup
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - inventory-network
+    volumes:
+      - ./scripts:/scripts
+    command: >
+      mongosh mongodb://admin:admin123@mongodb:27017/inventory?authSource=admin
+      --file /scripts/setup-ttl-index.js
+    restart: "no"
+
+  # Inventory API Server
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inventory-app
+    ports:
+      - "3030:3030"
+    environment:
+      PORT: 3030
+      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/inventory?authSource=admin
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: redis123
+      NODE_ENV: development
+      RATE_LIMIT_MAX: 100
+      RATE_LIMIT_WINDOW: 60000
+      CACHE_TTL: 900
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      setup:
+        condition: service_completed_successfully
+    networks:
+      - inventory-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3030/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
 volumes:
   mongodb_data:
     driver: local

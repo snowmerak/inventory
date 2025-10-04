@@ -1,0 +1,57 @@
+# Git
+.git
+.gitignore
+
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Testing
+coverage
+
+# Next.js
+.next
+out
+
+# Production
+build
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env files (we don't use them, but ignore anyway)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# Logs
+**/*.log
+
+# Bun
+**/*.bun
+
+# Serena
+.serena
+
+# Documentation
+docs
+README.md
+QUICKSTART.md
+SETUP.md
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore

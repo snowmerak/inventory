@@ -13,19 +13,36 @@ A secure API key management system built with Elysia, Bun, MongoDB, and Redis.
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Bun installed
-- Docker and Docker Compose (for local development)
+- Docker and Docker Compose
 
-### Local Development Setup
+### Automatic Setup (Recommended)
 
-1. **Install dependencies**
+**One command to start everything:**
+
 ```bash
-bun install
+docker-compose up -d --build
 ```
 
-2. **Start infrastructure (MongoDB + Redis)**
+This automatically:
+- ✅ Starts MongoDB and Redis
+- ✅ Creates TTL index for automatic expiration
+- ✅ Generates Prisma client
+- ✅ Builds and starts the Inventory API server
+
+Server will be running at: **http://localhost:3030**
+
+### Manual Development Setup (Optional)
+
+For local development without Docker for the app:
+
+1. **Start only infrastructure**
 ```bash
-bun run docker:up
+docker-compose up -d mongodb redis setup
+```
+
+2. **Install dependencies**
+```bash
+bun install
 ```
 
 3. **Set environment variables**
@@ -54,18 +71,7 @@ bun run db:generate
 bun run db:push
 ```
 
-6. **Setup MongoDB TTL Index** (for automatic expiration)
-```bash
-# See docs/TTL_SETUP.md for detailed instructions
-docker exec -it inventory-mongodb mongosh -u admin -p admin123 --authenticationDatabase admin
-
-# In mongosh:
-use inventory
-db.api_keys.createIndex({ "expires_at": 1 }, { expireAfterSeconds: 0 })
-exit
-```
-
-7. **Start development server**
+6. **Start development server**
 ```bash
 bun run dev
 ```
@@ -74,25 +80,44 @@ Open http://localhost:3030/ with your browser.
 
 ## 📋 Available Scripts
 
+### Development
 ```bash
-bun run dev          # Start development server with watch mode
-bun run start        # Start production server
-bun run db:generate  # Generate Prisma client
-bun run db:push      # Push schema to database
-bun run db:studio    # Open Prisma Studio
-bun run docker:up    # Start Docker containers
-bun run docker:down  # Stop Docker containers
-bun run docker:logs  # View Docker logs
+bun run dev              # Start with hot reload
+bun run start            # Start production mode
+bun run db:generate      # Generate Prisma client
+bun run db:push          # Push schema to database
+bun run db:studio        # Open Prisma Studio
 ```
 
-## 🐳 Docker Compose (Local Development)
+### Docker
+```bash
+bun run docker:build         # Build Docker images
+bun run docker:up            # Start all services
+bun run docker:up:build      # Build and start all services
+bun run docker:down          # Stop services
+bun run docker:down:volumes  # Stop and remove data
+bun run docker:logs          # View all logs
+bun run docker:logs:app      # View app logs only
+bun run docker:restart       # Restart app service
+```
 
-The `docker-compose.yml` provides:
-- MongoDB 7 (port 27017)
+## 🐳 Docker Compose
+
+The `docker-compose.yml` provides complete local environment:
+
+### Services
+- **MongoDB 7** (port 27017)
   - Username: `admin`
   - Password: `admin123`
-- Redis 7 (port 6379)
+  - Auto-configured TTL index
+- **Redis 7** (port 6379)
   - Password: `redis123`
+- **Setup Service** (one-time)
+  - Creates TTL index automatically
+- **Inventory API** (port 3030)
+  - Built from source
+  - Auto-restarts on failure
+  - Health checks enabled
 
 ## 🔧 Production Deployment
 

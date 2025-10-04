@@ -1,20 +1,65 @@
 # Quick Start Guide
 
-## 🚀 Getting Started
+## 🚀 Option 1: Full Docker Compose (Recommended)
 
-### 1. Install Dependencies
+모든 것이 자동으로 설정됩니다!
+
+### 1. Build and Start All Services
+```powershell
+bun run docker:up:build
+```
+
+이것 하나로:
+- ✅ MongoDB 시작
+- ✅ Redis 시작
+- ✅ TTL 인덱스 자동 생성
+- ✅ Prisma 클라이언트 생성
+- ✅ Inventory API 서버 시작
+
+### 2. Check Status
+```powershell
+# 모든 로그 확인
+bun run docker:logs
+
+# 앱 로그만 확인
+bun run docker:logs:app
+
+# 헬스 체크
+curl http://localhost:3030/health
+```
+
+### 3. Stop Services
+```powershell
+# 서비스만 중지 (데이터 유지)
+bun run docker:down
+
+# 데이터까지 삭제
+bun run docker:down:volumes
+```
+
+---
+
+## 🛠️ Option 2: Local Development (Without Docker for App)
+
+인프라만 Docker로, 앱은 로컬에서 실행
+
+### 1. Start Infrastructure Only
+먼저 docker-compose.yml을 수정하여 `app` 서비스 주석 처리:
+```yaml
+# app:
+#   build:
+#   ...
+```
+
+또는 개별 서비스만 시작:
+```powershell
+docker-compose up -d mongodb redis setup
+```
+
+### 2. Install Dependencies
 ```powershell
 bun install
 ```
-
-### 2. Start Local Infrastructure
-```powershell
-bun run docker:up
-```
-
-This will start:
-- MongoDB on `localhost:27017` (user: `admin`, password: `admin123`)
-- Redis on `localhost:6379` (password: `redis123`)
 
 ### 3. Set Environment Variables (PowerShell)
 ```powershell
@@ -29,13 +74,9 @@ $env:RATE_LIMIT_WINDOW="60000"
 $env:CACHE_TTL="900"
 ```
 
-### 4. Setup Database
+### 4. Generate Prisma Client
 ```powershell
-# Generate Prisma client
 bun run db:generate
-
-# Push schema to MongoDB
-bun run db:push
 ```
 
 ### 5. Start Development Server
@@ -43,14 +84,62 @@ bun run db:push
 bun run dev
 ```
 
-Server will start at: http://localhost:3030
+---
 
-### 6. Test Health Endpoint
+## 📋 Useful Commands
+
+### Docker Commands
+```powershell
+# Build images
+bun run docker:build
+
+# Start all services
+bun run docker:up
+
+# Start with rebuild
+bun run docker:up:build
+
+# Stop services
+bun run docker:down
+
+# Stop and remove volumes (clean slate)
+bun run docker:down:volumes
+
+# View all logs
+bun run docker:logs
+
+# View app logs only
+bun run docker:logs:app
+
+# Restart app only
+bun run docker:restart
+```
+
+### Development Commands
+```powershell
+# Start with hot reload
+bun run dev
+
+# Start production mode
+bun run start
+
+# Generate Prisma client
+bun run db:generate
+
+# Open Prisma Studio
+bun run db:studio
+```
+
+---
+
+## 🧪 Test the API
+
+### Health Check
 ```powershell
 curl http://localhost:3030/health
 ```
 
-Expected response:
+Expected:
 ```json
 {
   "status": "healthy",
@@ -62,58 +151,97 @@ Expected response:
 }
 ```
 
-## 🔧 Useful Commands
-
+### Publish API Key
 ```powershell
-# View Docker logs
-bun run docker:logs
+$body = @{
+  itemKey = "myapp://users/user123"
+  permission = @("read", "write")
+  expiresAt = "2025-12-31T23:59:59.000Z"
+  maxUses = 100
+} | ConvertTo-Json
 
-# Stop Docker containers
-bun run docker:down
-
-# Open Prisma Studio (Database GUI)
-bun run db:studio
-
-# Production mode
-bun run start
+Invoke-RestMethod -Uri "http://localhost:3030/api/keys/publish" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $body
 ```
 
-## 📦 What Was Implemented
+### Validate API Key
+```powershell
+$body = @{
+  apiKey = "your-api-key-from-publish-response"
+} | ConvertTo-Json
 
-✅ Environment configuration loading
-✅ MongoDB connection via Prisma
-✅ Redis connection
-✅ Distributed lock implementation
-✅ API key caching layer
-✅ Database repository for API keys
-✅ Crypto utilities (API key generation, Argon2id hashing)
-✅ Health check endpoint
-✅ Graceful shutdown handling
-✅ Docker Compose for local development
+Invoke-RestMethod -Uri "http://localhost:3030/api/keys/validate" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $body
+```
 
-## 📝 Next Steps
+### View Metrics
+```powershell
+curl http://localhost:3030/admin/metrics
+```
 
-The infrastructure is ready! Next you can implement:
+---
 
-1. **API Key Publishing Endpoint** (`POST /api/keys/publish`)
-   - Generate random 64-char API key
-   - Hash with Argon2id
-   - Store in MongoDB
-   - Return original key (once)
+## 🔍 Troubleshooting
 
-2. **API Key Validation Endpoint** (`POST /api/keys/validate`)
-   - Rate limiting middleware
-   - Distributed lock
-   - Cache-first lookup
-   - Verify with Argon2id
-   - Check expiration & usage limits
-   - Increment usage count
+### App won't start
+```powershell
+# Check logs
+bun run docker:logs:app
 
-3. **Rate Limiting**
-   - Add rate limiting middleware to public ingress
+# Common issues:
+# 1. MongoDB not ready - wait a bit longer
+# 2. Port 3030 in use - change PORT env var
+# 3. Dependencies not installed - rebuild image
+```
 
-4. **Error Handling**
-   - Standardized error responses
-   - Logging
+### MongoDB connection issues
+```powershell
+# Check MongoDB is running
+docker ps | Select-String mongodb
 
-Would you like me to implement these endpoints next?
+# Check MongoDB logs
+docker logs inventory-mongodb
+
+# Test connection
+docker exec -it inventory-mongodb mongosh -u admin -p admin123
+```
+
+### Redis connection issues
+```powershell
+# Check Redis is running
+docker ps | Select-String redis
+
+# Test connection
+docker exec -it inventory-redis redis-cli -a redis123 ping
+```
+
+### TTL Index not created
+```powershell
+# Check setup container logs
+docker logs inventory-setup
+
+# Manually create index
+docker exec -it inventory-mongodb mongosh -u admin -p admin123 --authenticationDatabase admin
+use inventory
+db.api_keys.createIndex({ "expires_at": 1 }, { expireAfterSeconds: 0 })
+```
+
+---
+
+## 📚 Next Steps
+
+- Read full API documentation: `docs/API.md`
+- Learn about architecture: `docs/blueprint.d2`
+- Set up production: See README.md
+
+## 🎉 You're Ready!
+
+Server is running at: **http://localhost:3030**
+
+- API endpoints: `/api/keys/*`
+- Admin endpoints: `/admin/*`
+- Metrics: `/admin/metrics`
