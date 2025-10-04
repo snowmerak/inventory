@@ -4,6 +4,8 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
     "db:generate": "bunx prisma generate",
     "db:push": "bunx prisma db push",
     "db:studio": "bunx prisma studio",
@@ -14,8 +16,7 @@
     "docker:down:volumes": "docker-compose down -v",
     "docker:logs": "docker-compose logs -f",
     "docker:logs:app": "docker-compose logs -f app",
-    "docker:restart": "docker-compose restart app",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "docker:restart": "docker-compose restart app"
   },
   "dependencies": {
     "@elysiajs/openapi": "^1.4.11",
@@ -25,6 +26,7 @@
     "ioredis": "^5.4.1"
   },
   "devDependencies": {
+    "@elysiajs/eden": "^1.1.3",
     "bun-types": "latest",
     "prisma": "^5.20.0",
     "@types/node": "^22.7.5"
