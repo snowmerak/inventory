@@ -7,248 +7,287 @@ vars: {
 }
 
 server: {
-    api: {
-        engine: {
-            shape: image
-            icon: ./icons/ElysiaJS.svg
-        }
+  public_ingress: {
+    shape: cloud
 
-        publisher: {
-            shape: package
+    filter: {
+      shape: sequence_diagram
 
-            publishing: {
-                shape: sequence_diagram
-                user: {
-                    note: "User requests to publish a new API key\nfor a specific item with defined permissions."
-                }
-                this: {
-                    note: "API Key Publishing Flow"
-                }
-                generate_api_key: {
-                    note: "Generates a random 64-character API key\nusing a secure random generator."
-                }
-                hash_api_key: {
-                    note: "Hashes the generated API key using\nArgon2id for secure storage."
-                }
-                store_api_key: {
-                    note: "Stores the hashed API key along with\nits metadata in the database.\nChecks for duplicates before storing."
-                }
+      user: {
+        note: "External user or service sends a request\nto validate an API key."
+      }
+      this: {
+        note: "Public Ingress Filter"
+      }
+      rate_limit: {
+        note: "Applies rate limiting to prevent abuse.\nLimits requests to 100 per minute per IP."
+      }
+    }
+  }
 
-                user -> this: Request to Publish API Key (item_key, permission, expires_at, max_uses)
-                generating: {
-                    this -> generate_api_key: Generate Random API Key (64 chars)
-                    generate_api_key -> this: Return Original API Key
-                    when_exception: {
-                        this -> user: Return Error (Generation Failed)
-                    }
-                    when_success: {
-                        hashing: {
-                            this -> hash_api_key: Hash API Key (Argon2id)
-                            hash_api_key -> this: Return Hashed API Key
-                            when_exception: {
-                                this -> user: Return Error (Hashing Failed)
-                            }
-                            when_success: {
-                                storing_and_checking: {
-                                    this -> store_api_key: Store API Key in DB and Check duplicate
-                                    store_api_key -> this: Return Success or Error
-                                    when_exception: {
-                                        this -> user: Return Error (Storage Failed or Duplicate)
-                                    }
-                                    when_success: {
-                                        this -> user: Return Original API Key Published (only once)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+  private_ingress: {
+    shape: cloud
+  }
 
-        validator: {
-            shape: package
-
-            validating: {
-                shape: sequence_diagram
-
-                user: {
-                    note: "User requests to validate an API key."
-                }
-                this: {
-                    note: "API Key Validation Flow"
-                }
-                fetch_from_cache: {
-                    note: "First checks the cache for the hashed API key."
-                }
-                fetch_from_db: {
-                    note: "If not found in cache, fetches from the database."
-                }
-                verify_api_key: {
-                    note: "Verifies the provided API key against the hashed key\nusing Argon2id.\nIf valid, checks expiration and usage limits."
-                }
-                update_usage: {
-                    note: "If valid, increments the usage count\nand updates the cache."
-                }
-
-                user -> this: Request to Validate API Key (api_key)
-                fetching_cache: {
-                    this -> fetch_from_cache: Fetch Hashed API Key from Cache
-                    fetch_from_cache -> this: Return Hashed API Key or Not Found
-                    when_not_found: {
-                        fetching_db: {
-                            this -> fetch_from_db: Fetch Hashed API Key from DB
-                            fetch_from_db -> this: Return Hashed API Key or Not Found
-                            when_not_found: {
-                                this -> user: Return Error (API Key Not Found)
-                            }
-                            when_found: {
-                                verifying: {
-                                    this -> verify_api_key: Verify API Key (Argon2id)
-                                    verify_api_key -> this: Return Valid or Invalid
-                                    when_invalid: {
-                                        this -> user: Return Error (Invalid API Key)
-                                    }
-                                    when_valid: {
-                                        checking_limits: {
-                                            this -> update_usage: Increment Usage Count and Update Cache
-                                            update_usage -> this: Return Success or Error
-                                            when_exception: {
-                                                this -> user: Return Error (Update Failed)
-                                            }
-                                            when_success: {
-                                                this -> user: Return Success (API Key Validated with Permissions)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    when_found: {
-                        verifying_cached: {
-                            this -> verify_api_key: Verify API Key (Argon2id)
-                            verify_api_key -> this: Return Valid or Invalid
-                            when_invalid: {
-                                this -> user: Return Error (Invalid API Key)
-                            }
-                            when_valid: {
-                                checking_limits_cached: {
-                                    this -> update_usage: Increment Usage Count and Update Cache
-                                    update_usage -> this: Return Success or Error
-                                    when_exception: {
-                                        this -> user: Return Error (Update Failed)
-                                    }
-                                    when_success: {
-                                        this -> user: Return Success (API Key Validated with Permissions)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        db_connector: {
-            shape: image
-            icon: ./icons/prisma.svg
-        }
-
-        cache_connector: {
-            shape: image
-            icon: ./icons/bun.svg
-        }
-
-        engine -> publisher: Publish API Key
-        engine -> validator: Validate API Key
-
-        publisher -> db_connector: Store API Key
-        validator -> db_connector: Fetch API Key
-        validator -> cache_connector: Fetch API Key
+  api: {
+    engine: {
+      shape: image
+      icon: ./icons/ElysiaJS.svg
     }
 
-    cache: {
-        engine: {
-            shape: image
-            icon: ./icons/redis.svg
+    publisher: {
+      shape: package
+
+      publishing: {
+        shape: sequence_diagram
+        user: {
+          note: "User requests to publish a new API key\nfor a specific item with defined permissions."
+        }
+        this: {
+          note: "API Key Publishing Flow"
+        }
+        generate_api_key: {
+          note: "Generates a random 64-character API key\nusing a secure random generator."
+        }
+        hash_api_key: {
+          note: "Hashes the generated API key using\nArgon2id for secure storage."
+        }
+        store_api_key: {
+          note: "Stores the hashed API key along with\nits metadata in the database.\nChecks for duplicates before storing."
         }
 
-        schema: {
-            api_key_cache: {
-                shape: sql_table
-
-                key_template: "inventory:api_key:{api_key}" {
-                    constraint: [primary_key; unique]
+        user -> this: Request to Publish API Key (item_key, permission, expires_at, max_uses)
+        generating: {
+          this -> generate_api_key: Generate Random API Key (64 chars)
+          generate_api_key -> this: Return Original API Key
+          when_exception: {
+            this -> user: Return Error (Generation Failed)
+          }
+          when_success: {
+            hashing: {
+              this -> hash_api_key: Hash API Key (Argon2id)
+              hash_api_key -> this: Return Hashed API Key
+              when_exception: {
+                this -> user: Return Error (Hashing Failed)
+              }
+              when_success: {
+                storing_and_checking: {
+                  this -> store_api_key: Store API Key in DB and Check duplicate
+                  store_api_key -> this: Return Success or Error
+                  when_exception: {
+                    this -> user: Return Error (Storage Failed or Duplicate)
+                  }
+                  when_success: {
+                    this -> user: Return Original API Key Published (only once)
+                  }
                 }
-                hashed_api_key: string
-                item_key: string
-                permission: "[]string"
-                expires_at: datetime
-                used_count: integer
-                max_uses: integer
-                ttl: integer {
-                    constraint: [default: 900] # 15 minutes, in seconds
-                }
+              }
             }
-        }   
-
-        schema -> engine: Uses
+          }
+        }
+      }
     }
 
-    database: {
-        engine: {
-            shape: image
-            icon: ./icons/mongodb.svg
+    validator: {
+      shape: package
+
+      validating: {
+        shape: sequence_diagram
+
+        user: {
+          note: "User requests to validate an API key."
+        }
+        this: {
+          note: "API Key Validation Flow"
+        }
+        lock_distributed: {
+          note: "Locks the API key validation process\nusing a distributed lock to prevent\nrace conditions."
+        }
+        fetch_from_cache: {
+          note: "First checks the cache for the hashed API key."
+        }
+        fetch_from_db: {
+          note: "If not found in cache, fetches from the database."
+        }
+        verify_api_key: {
+          note: "Verifies the provided API key against the hashed key\nusing Argon2id.\nIf valid, checks expiration and usage limits."
+        }
+        update_usage: {
+          note: "If valid, increments the usage count\nand updates the cache."
         }
 
-        schema: {
-            api_key: {
-                shape: sql_table
-
-                id: uuid {
-                    constraint: [primary_key; unique]
+        user -> this: Request to Validate API Key (api_key)
+        locking: {
+          this -> lock_distributed: Acquire Distributed Lock on API Key
+          lock_distributed -> this: Return Lock Acquired or Failed
+          when_failed: {
+            this -> user: Return Error (Lock Acquisition Failed)
+          }
+          when_acquired: {
+            fetching_cache: {
+              this -> fetch_from_cache: Fetch Hashed API Key from Cache
+              fetch_from_cache -> this: Return Hashed API Key or Not Found
+              when_not_found: {
+                fetching_db: {
+                  this -> fetch_from_db: Fetch Hashed API Key from DB
+                  fetch_from_db -> this: Return Hashed API Key or Not Found
+                  when_not_found: {
+                    this -> user: Return Error (API Key Not Found)
+                  }
+                  when_found: {
+                    verifying: {
+                      this -> verify_api_key: Verify API Key (Argon2id)
+                      verify_api_key -> this: Return Valid or Invalid
+                      when_invalid: {
+                        this -> user: Return Error (Invalid API Key)
+                      }
+                      when_valid: {
+                        checking_limits: {
+                          this -> update_usage: Increment Usage Count and Update Cache
+                          update_usage -> this: Return Success or Error
+                          when_exception: {
+                            this -> user: Return Error (Update Failed)
+                          }
+                          when_success: {
+                            this -> user: Return Success (API Key Validated with Permissions)
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
-                hashed_api_key: string {
-                    constraint: [unique]
+              }
+              when_found: {
+                verifying_cached: {
+                  this -> verify_api_key: Verify API Key (Argon2id)
+                  verify_api_key -> this: Return Valid or Invalid
+                  when_invalid: {
+                    this -> user: Return Error (Invalid API Key)
+                  }
+                  when_valid: {
+                    checking_limits_cached: {
+                      this -> update_usage: Increment Usage Count and Update Cache
+                      update_usage -> this: Return Success or Error
+                      when_exception: {
+                        this -> user: Return Error (Update Failed)
+                      }
+                      when_success: {
+                        this -> user: Return Success (API Key Validated with Permissions)
+                      }
+                    }
+                  }
                 }
-                item_key: string {
-                    constraint: []
-                }
-                permission: "[]string" {
-                    constraint: []
-                }
-                published_at: datetime {
-                    constraint: []
-                }
-                expires_at: datetime {
-                    constraint: []
-                }
-                used_count: integer {
-                    constraint: [default: 0]
-                }
-                max_uses: integer {
-                    constraint: []
-                }
+              }
             }
+            this -> lock_distributed: Release Distributed Lock
+            lock_distributed -> this: Confirm Lock Released
+          }
         }
-
-        schema -> engine: Uses
+      }
     }
 
-    api.db_connector -> database.engine: Connects To
-    api.cache_connector -> cache.engine: Connects To
+    db_connector: {
+      shape: image
+      icon: ./icons/prisma.svg
+    }
+
+    cache_connector: {
+      shape: image
+      icon: ./icons/bun.svg
+    }
+
+    public_ingress -> engine: Incoming Requests
+    private_ingress -> engine: Internal Requests
+
+    engine -> publisher: Publish API Key
+    engine -> validator: Validate API Key
+
+    publisher -> db_connector: Store API Key
+    validator -> db_connector: Fetch API Key
+    validator -> cache_connector: Fetch API Key
+  }
+
+  cache: {
+    engine: {
+      shape: image
+      icon: ./icons/redis.svg
+    }
+
+    schema: {
+      api_key_cache: {
+        shape: sql_table
+
+        key_template: "inventory:api_key:{api_key}" {
+          constraint: [primary_key; unique]
+        }
+        hashed_api_key: string
+        item_key: string
+        permission: "[]string"
+        expires_at: datetime
+        used_count: integer
+        max_uses: integer
+        ttl: integer {
+          constraint: [default: 900] # 15 minutes, in seconds
+        }
+      }
+    }
+
+    schema -> engine: Uses
+  }
+
+  database: {
+    engine: {
+      shape: image
+      icon: ./icons/mongodb.svg
+    }
+
+    schema: {
+      api_key: {
+        shape: sql_table
+
+        id: uuid {
+          constraint: [primary_key; unique]
+        }
+        hashed_api_key: string {
+          constraint: [unique]
+        }
+        item_key: string {
+          constraint: []
+        }
+        permission: "[]string" {
+          constraint: []
+        }
+        published_at: datetime {
+          constraint: []
+        }
+        expires_at: datetime {
+          constraint: []
+        }
+        used_count: integer {
+          constraint: [default: 0]
+        }
+        max_uses: integer {
+          constraint: []
+        }
+      }
+    }
+
+    schema -> engine: Uses
+  }
+
+  api.db_connector -> database.engine: Connects To
+  api.cache_connector -> cache.engine: Connects To
 }
 
 admin: {
-    shape: person
+  shape: person
 }
 
 user: {
-    shape: person
+  shape: person
 }
 
-admin -> server.api.engine: Publish Item Key
-server.api.engine -> admin: Item Key Published
-user -> server.api.engine: Validate Item Key
-server.api.engine -> user: Item Key Validated
+admin -> server.api.private_ingress: Publish Item Key
+server.api.primary_ingress -> admin: Item Key Published
+user -> server.api.public_ingress: Validate Item Key
+server.api.public_ingress -> user: Item Key Validated
