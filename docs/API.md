@@ -80,9 +80,9 @@
 
 ### List Keys by Item
 
-**Endpoint**: `GET /admin/keys/:itemKey`
+**Endpoint**: `GET /admin/keys/by-item?itemKey=<encoded-item-key>`
 
-**Example**: `GET /admin/keys/myapp%3A%2F%2Fusers%2Fuser123`
+**Example**: `GET /admin/keys/by-item?itemKey=myapp%3A%2F%2Fusers%2Fuser123`
 
 **Response**:
 ```json
@@ -110,7 +110,7 @@
 
 ### Get Key Statistics
 
-**Endpoint**: `GET /admin/keys/:hashedApiKey/stats`
+**Endpoint**: `GET /admin/keys/stats/:hashedApiKey`
 
 **Response**:
 ```json
@@ -170,7 +170,7 @@ Note: With MongoDB TTL index, this is done automatically.
 
 ### Revoke API Key
 
-**Endpoint**: `DELETE /admin/keys/:hashedApiKey`
+**Endpoint**: `DELETE /admin/keys/revoke/:hashedApiKey`
 
 **Response**:
 ```json

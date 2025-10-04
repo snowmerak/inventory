@@ -12,10 +12,21 @@ export function createAdminRoutes(prisma: PrismaClient) {
   const adminService = new AdminService(prisma)
 
   return new Elysia({ prefix: '/admin' })
-    // List API keys by item
-    .get('/keys/:itemKey', async ({ params, set }) => {
+    // List API keys by item (query parameter to avoid route conflict)
+    .get('/keys/by-item', async ({ query, set }) => {
       try {
-        return await adminService.listKeysByItem(params.itemKey)
+        const itemKey = query.itemKey as string
+        if (!itemKey) {
+          set.status = 400
+          return {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'itemKey query parameter is required'
+            }
+          }
+        }
+        return await adminService.listKeysByItem(itemKey)
       } catch (error) {
         if (error instanceof ApiError) {
           set.status = error.statusCode
@@ -40,8 +51,8 @@ export function createAdminRoutes(prisma: PrismaClient) {
       }
     })
 
-    // Get API key statistics
-    .get('/keys/:hashedApiKey/stats', async ({ params, set }) => {
+    // Get API key statistics by hashed key
+    .get('/keys/stats/:hashedApiKey', async ({ params, set }) => {
       try {
         return await adminService.getKeyStats(params.hashedApiKey)
       } catch (error) {
@@ -68,42 +79,8 @@ export function createAdminRoutes(prisma: PrismaClient) {
       }
     })
 
-    // Cleanup expired keys
-    .delete('/keys/expired', async ({ set }) => {
-      try {
-        return await adminService.cleanupExpired()
-      } catch (error) {
-        console.error('Unexpected error in cleanup:', error)
-        set.status = 500
-        return {
-          success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: 'An unexpected error occurred'
-          }
-        }
-      }
-    })
-
-    // Get overall statistics
-    .get('/stats', async ({ set }) => {
-      try {
-        return await adminService.getOverallStats(prisma)
-      } catch (error) {
-        console.error('Unexpected error in overall stats:', error)
-        set.status = 500
-        return {
-          success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: 'An unexpected error occurred'
-          }
-        }
-      }
-    })
-
     // Revoke an API key
-    .delete('/keys/:hashedApiKey', async ({ params, set }) => {
+    .delete('/keys/revoke/:hashedApiKey', async ({ params, set }) => {
       try {
         return await adminService.revokeKey(params.hashedApiKey, prisma)
       } catch (error) {
@@ -126,25 +103,6 @@ export function createAdminRoutes(prisma: PrismaClient) {
             code: 'INTERNAL_ERROR',
             message: 'An unexpected error occurred'
           }
-        }
-      }
-    })
-
-    // Get metrics
-    .get('/metrics', () => {
-      return {
-        success: true,
-        data: metrics.getMetrics()
-      }
-    })
-
-    // Reset metrics
-    .post('/metrics/reset', () => {
-      metrics.reset()
-      return {
-        success: true,
-        data: {
-          message: 'Metrics reset successfully'
         }
       }
     })
