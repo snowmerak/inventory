@@ -71,6 +71,82 @@ server: {
 
             validating: {
                 shape: sequence_diagram
+
+                user: {
+                    note: "User requests to validate an API key."
+                }
+                this: {
+                    note: "API Key Validation Flow"
+                }
+                fetch_from_cache: {
+                    note: "First checks the cache for the hashed API key."
+                }
+                fetch_from_db: {
+                    note: "If not found in cache, fetches from the database."
+                }
+                verify_api_key: {
+                    note: "Verifies the provided API key against the hashed key\nusing Argon2id.\nIf valid, checks expiration and usage limits."
+                }
+                update_usage: {
+                    note: "If valid, increments the usage count\nand updates the cache."
+                }
+
+                user -> this: Request to Validate API Key (api_key)
+                fetching_cache: {
+                    this -> fetch_from_cache: Fetch Hashed API Key from Cache
+                    fetch_from_cache -> this: Return Hashed API Key or Not Found
+                    when_not_found: {
+                        fetching_db: {
+                            this -> fetch_from_db: Fetch Hashed API Key from DB
+                            fetch_from_db -> this: Return Hashed API Key or Not Found
+                            when_not_found: {
+                                this -> user: Return Error (API Key Not Found)
+                            }
+                            when_found: {
+                                verifying: {
+                                    this -> verify_api_key: Verify API Key (Argon2id)
+                                    verify_api_key -> this: Return Valid or Invalid
+                                    when_invalid: {
+                                        this -> user: Return Error (Invalid API Key)
+                                    }
+                                    when_valid: {
+                                        checking_limits: {
+                                            this -> update_usage: Increment Usage Count and Update Cache
+                                            update_usage -> this: Return Success or Error
+                                            when_exception: {
+                                                this -> user: Return Error (Update Failed)
+                                            }
+                                            when_success: {
+                                                this -> user: Return Success (API Key Validated with Permissions)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    when_found: {
+                        verifying_cached: {
+                            this -> verify_api_key: Verify API Key (Argon2id)
+                            verify_api_key -> this: Return Valid or Invalid
+                            when_invalid: {
+                                this -> user: Return Error (Invalid API Key)
+                            }
+                            when_valid: {
+                                checking_limits_cached: {
+                                    this -> update_usage: Increment Usage Count and Update Cache
+                                    update_usage -> this: Return Success or Error
+                                    when_exception: {
+                                        this -> user: Return Error (Update Failed)
+                                    }
+                                    when_success: {
+                                        this -> user: Return Success (API Key Validated with Permissions)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
