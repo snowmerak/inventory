@@ -1,0 +1,27 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+model ApiKey {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  searchableHash String   @map("searchable_hash") // SHA-1 first 8 bytes (16 hex chars) for fast lookup
+  hashedApiKey   String   @unique @map("hashed_api_key") // Argon2id for security
+  itemKey        String   @map("item_key")
+  permission     String[] @map("permission")
+  publishedAt    DateTime @default(now()) @map("published_at")
+  expiresAt      DateTime @map("expires_at")
+  usedCount      Int      @default(0) @map("used_count")
+  maxUses        Int      @map("max_uses")
+
+  @@index([searchableHash])
+  @@index([expiresAt]) // TTL index for automatic deletion
+  @@map("api_keys")
+}

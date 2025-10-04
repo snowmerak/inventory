@@ -1,5 +1,11 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Environment variables (use docker-compose or k8s secrets instead)
+.env
+
+# Prisma
+node_modules/.prisma
+
 .serena
 
 # dependencies

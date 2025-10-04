@@ -2,14 +2,26 @@
   "name": "inventory",
   "version": "1.0.50",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "bun run --watch src/index.ts"
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "db:generate": "bunx prisma generate",
+    "db:push": "bunx prisma db push",
+    "db:studio": "bunx prisma studio",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "elysia": "latest"
+    "elysia": "latest",
+    "@prisma/client": "^5.20.0",
+    "ioredis": "^5.4.1",
+    "argon2": "^0.41.1"
   },
   "devDependencies": {
-    "bun-types": "latest"
+    "bun-types": "latest",
+    "prisma": "^5.20.0",
+    "@types/node": "^22.7.5"
   },
   "module": "src/index.js"
 }
