@@ -12,8 +12,10 @@ services:
       MONGO_INITDB_DATABASE: inventory
     volumes:
       - mongodb_data:/data/db
+      - ./scripts/init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh
     networks:
       - inventory-network
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/inventory --quiet
       interval: 10s
@@ -36,7 +38,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Setup job - runs once to initialize database
+  # Setup job - Initialize replica set and create TTL index
   setup:
     image: mongo:7
     container_name: inventory-setup
@@ -47,9 +49,32 @@ services:
       - inventory-network
     volumes:
       - ./scripts:/scripts
-    command: >
-      mongosh mongodb://admin:admin123@mongodb:27017/inventory?authSource=admin
-      --file /scripts/setup-ttl-index.js
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        echo "Waiting for MongoDB to be ready..."
+        sleep 5
+        
+        echo "Initializing replica set..."
+        mongosh mongodb://admin:admin123@mongodb:27017/admin <<EOF
+        try {
+          rs.status();
+          print("Replica set already initialized");
+        } catch(e) {
+          print("Initializing replica set...");
+          rs.initiate({
+            _id: "rs0",
+            members: [{ _id: 0, host: "mongodb:27017" }]
+          });
+          print("Waiting for replica set to be ready...");
+          sleep(5000);
+        }
+        EOF
+        
+        echo "Creating TTL index..."
+        mongosh mongodb://admin:admin123@mongodb:27017/inventory?authSource=admin --file /scripts/setup-ttl-index.js
+        
+        echo "Setup completed successfully"
     restart: "no"
 
   # Inventory API Server
@@ -62,7 +87,7 @@ services:
       - "3030:3030"
     environment:
       PORT: 3030
-      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/inventory?authSource=admin
+      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/inventory?authSource=admin&replicaSet=rs0
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: redis123
