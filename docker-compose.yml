@@ -6,15 +6,11 @@ services:
     container_name: inventory-mongodb
     ports:
       - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: admin123
-      MONGO_INITDB_DATABASE: inventory
     volumes:
       - mongodb_data:/data/db
     networks:
       - inventory-network
-    command: ["--replSet", "rs0", "--bind_ip_all"]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/inventory --quiet
       interval: 10s
@@ -55,7 +51,7 @@ services:
         sleep 5
         
         echo "Initializing replica set..."
-        mongosh mongodb://admin:admin123@mongodb:27017/admin <<EOF
+        mongosh mongodb://mongodb:27017/admin <<EOF
         try {
           rs.status();
           print("Replica set already initialized");
@@ -71,7 +67,7 @@ services:
         EOF
         
         echo "Creating TTL index..."
-        mongosh mongodb://admin:admin123@mongodb:27017/inventory?authSource=admin --file /scripts/setup-ttl-index.js
+        mongosh mongodb://mongodb:27017/inventory --file /scripts/setup-ttl-index.js
         
         echo "Setup completed successfully"
     restart: "no"
@@ -86,7 +82,7 @@ services:
       - "3030:3030"
     environment:
       PORT: 3030
-      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/inventory?authSource=admin&replicaSet=rs0
+      MONGODB_URI: mongodb://mongodb:27017/inventory?replicaSet=rs0&directConnection=true
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: redis123
