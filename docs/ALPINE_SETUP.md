@@ -132,25 +132,26 @@ OpenSSL 3.x.x
    docker exec inventory-app openssl version
    ```
 
-### Architecture mismatch?
+### Multi-Architecture Support
 
-If you're on ARM64 (M1/M2 Mac or ARM server):
+The schema now includes both x86_64 and ARM64 targets:
+
 ```prisma
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+  binaryTargets = [
+    "native",                           # Your local machine
+    "linux-musl-openssl-3.0.x",        # Alpine x86_64
+    "linux-musl-arm64-openssl-3.0.x"   # Alpine ARM64 (M1/M2/ARM servers)
+  ]
 }
 ```
 
-If you're on AMD64 (Intel/AMD):
-```prisma
-generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
-}
-```
-
-Current config works for both since Docker build handles it automatically.
+This configuration works for:
+- ✅ Local development (Windows/Mac/Linux)
+- ✅ Docker on x86_64 (Intel/AMD)
+- ✅ Docker on ARM64 (M1/M2 Mac, ARM servers)
+- ✅ CI/CD pipelines on any architecture
 
 ## Image Size Comparison
 
