@@ -76,7 +76,7 @@ export function createApiRoutes(
       }),
       response: {
         200: t.Object({
-          success: t.Literal(true),
+          success: t.Boolean(),
           data: t.Object({
             apiKey: t.String({ description: 'Generated API key (shown only once!)' }),
             itemKey: t.String(),
@@ -87,14 +87,14 @@ export function createApiRoutes(
           })
         }),
         400: t.Object({
-          success: t.Literal(false),
+          success: t.Boolean(),
           error: t.Object({
             code: t.String(),
             message: t.String()
           })
         }),
         500: t.Object({
-          success: t.Literal(false),
+          success: t.Boolean(),
           error: t.Object({
             code: t.String(),
             message: t.String()
@@ -153,7 +153,7 @@ export function createApiRoutes(
       }),
       response: {
         200: t.Object({
-          success: t.Literal(true),
+          success: t.Boolean(),
           data: t.Object({
             valid: t.Literal(true),
             itemKey: t.String(),
@@ -164,28 +164,28 @@ export function createApiRoutes(
           })
         }),
         400: t.Object({
-          success: t.Literal(false),
+          success: t.Boolean(),
           error: t.Object({
             code: t.String(),
             message: t.String()
           })
         }),
         401: t.Object({
-          success: t.Literal(false),
+          success: t.Boolean(),
           error: t.Object({
             code: t.String(),
             message: t.String()
           })
         }),
         429: t.Object({
-          success: t.Literal(false),
+          success: t.Boolean(),
           error: t.Object({
             code: t.String(),
             message: t.String()
           })
         }),
         500: t.Object({
-          success: t.Literal(false),
+          success: t.Boolean(),
           error: t.Object({
             code: t.String(),
             message: t.String()

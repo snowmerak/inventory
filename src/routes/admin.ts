@@ -45,34 +45,7 @@ export function createAdminRoutes(prisma: PrismaClient) {
           description: 'Item key to filter by',
           minLength: 1
         })
-      }),
-      response: {
-        200: t.Object({
-          success: t.Literal(true),
-          data: t.Object({
-            itemKey: t.String(),
-            count: t.Integer(),
-            keys: t.Array(t.Object({
-              id: t.String(),
-              itemKey: t.String(),
-              permission: t.Array(t.String()),
-              publishedAt: t.String({ format: 'date-time' }),
-              expiresAt: t.String({ format: 'date-time' }),
-              usedCount: t.Integer(),
-              maxUses: t.Integer(),
-              isExpired: t.Boolean(),
-              isExhausted: t.Boolean()
-            }))
-          })
-        }),
-        400: t.Object({
-          success: t.Literal(false),
-          error: t.Object({
-            code: t.String(),
-            message: t.String()
-          })
-        })
-      }
+      })
     })
 
     // Get API key statistics by hashed key
@@ -107,35 +80,7 @@ export function createAdminRoutes(prisma: PrismaClient) {
           description: 'Hashed API key (Argon2id hash)',
           minLength: 1
         })
-      }),
-      response: {
-        200: t.Object({
-          success: t.Literal(true),
-          data: t.Object({
-            usedCount: t.Integer(),
-            maxUses: t.Integer(),
-            remainingUses: t.Integer(),
-            expiresAt: t.String({ format: 'date-time' }),
-            isExpired: t.Boolean(),
-            isExhausted: t.Boolean(),
-            utilizationRate: t.Number()
-          })
-        }),
-        404: t.Object({
-          success: t.Literal(false),
-          error: t.Object({
-            code: t.String(),
-            message: t.String()
-          })
-        }),
-        500: t.Object({
-          success: t.Literal(false),
-          error: t.Object({
-            code: t.String(),
-            message: t.String()
-          })
-        })
-      }
+      })
     })
 
     // Revoke an API key
@@ -170,31 +115,7 @@ export function createAdminRoutes(prisma: PrismaClient) {
           description: 'Hashed API key to revoke',
           minLength: 1
         })
-      }),
-      response: {
-        200: t.Object({
-          success: t.Literal(true),
-          data: t.Object({
-            message: t.String(),
-            id: t.String(),
-            revokedAt: t.String({ format: 'date-time' })
-          })
-        }),
-        404: t.Object({
-          success: t.Literal(false),
-          error: t.Object({
-            code: t.String(),
-            message: t.String()
-          })
-        }),
-        500: t.Object({
-          success: t.Literal(false),
-          error: t.Object({
-            code: t.String(),
-            message: t.String()
-          })
-        })
-      }
+      })
     })
 
     // Cleanup expired keys
@@ -222,23 +143,6 @@ export function createAdminRoutes(prisma: PrismaClient) {
             message: 'An unexpected error occurred'
           }
         }
-      }
-    }, {
-      response: {
-        200: t.Object({
-          success: t.Literal(true),
-          data: t.Object({
-            deletedCount: t.Integer(),
-            message: t.String()
-          })
-        }),
-        500: t.Object({
-          success: t.Literal(false),
-          error: t.Object({
-            code: t.String(),
-            message: t.String()
-          })
-        })
       }
     })
 
@@ -268,29 +172,6 @@ export function createAdminRoutes(prisma: PrismaClient) {
           }
         }
       }
-    }, {
-      response: {
-        200: t.Object({
-          success: t.Literal(true),
-          data: t.Object({
-            totalKeys: t.Integer(),
-            activeKeys: t.Integer(),
-            expiredKeys: t.Integer(),
-            exhaustedKeys: t.Integer(),
-            topItems: t.Array(t.Object({
-              itemKey: t.String(),
-              keyCount: t.Integer()
-            }))
-          })
-        }),
-        500: t.Object({
-          success: t.Literal(false),
-          error: t.Object({
-            code: t.String(),
-            message: t.String()
-          })
-        })
-      }
     })
 
     // Get metrics
@@ -311,30 +192,6 @@ export function createAdminRoutes(prisma: PrismaClient) {
             message: 'An unexpected error occurred'
           }
         }
-      }
-    }, {
-      response: {
-        200: t.Object({
-          success: t.Literal(true),
-          data: t.Object({
-            keysPublished: t.Integer(),
-            keysValidated: t.Integer(),
-            cacheHits: t.Integer(),
-            cacheMisses: t.Integer(),
-            cacheHitRate: t.Number(),
-            avgPublishTime: t.Number(),
-            avgValidationTime: t.Number(),
-            rateLimitErrors: t.Integer(),
-            lockAcquisitionErrors: t.Integer()
-          })
-        }),
-        500: t.Object({
-          success: t.Literal(false),
-          error: t.Object({
-            code: t.String(),
-            message: t.String()
-          })
-        })
       }
     })
 }
