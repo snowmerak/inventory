@@ -89,13 +89,15 @@ export class AdminService {
         }
       }
     })
-    const exhaustedKeys = await prisma.apiKey.count({
-      where: {
-        usedCount: {
-          gte: prisma.apiKey.fields.maxUses
-        }
+    // MongoDB doesn't support field-to-field comparison in where clause
+    // Need to fetch all keys and filter in application
+    const allKeys = await prisma.apiKey.findMany({
+      select: {
+        usedCount: true,
+        maxUses: true
       }
     })
+    const exhaustedKeys = allKeys.filter(k => k.usedCount >= k.maxUses).length
 
     // Get keys by item (top 10)
     const keysByItem = await prisma.apiKey.groupBy({
