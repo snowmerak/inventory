@@ -12,7 +12,6 @@ services:
       MONGO_INITDB_DATABASE: inventory
     volumes:
       - mongodb_data:/data/db
-      - ./scripts/init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh
     networks:
       - inventory-network
     command: ["--replSet", "rs0", "--bind_ip_all"]
