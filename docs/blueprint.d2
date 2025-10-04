@@ -8,7 +8,7 @@ vars: {
 
 server: {
   public_ingress: {
-    shape: cloud
+    shape: page
 
     filter: {
       shape: sequence_diagram
@@ -22,11 +22,26 @@ server: {
       rate_limit: {
         note: "Applies rate limiting to prevent abuse.\nLimits requests to 100 per minute per IP."
       }
+      reverse_proxy: {
+        note: "Forwards the request to the internal API engine."
+      }
+
+      user -> this: Incoming Request (api_key)
+      this -> rate_limit: Apply Rate Limiting
+      rate_limit -> this: Return Allowed or Rate Limited
+      when_rate_limited: {
+        this -> user: Return Error (429 Too Many Requests)
+      }
+      when_allowed: {
+        this -> reverse_proxy: Forward Request to API Engine
+        reverse_proxy -> this: Return Response
+        this -> user: Return Response
+      }
     }
   }
 
   private_ingress: {
-    shape: cloud
+    shape: page
   }
 
   api: {
@@ -196,9 +211,6 @@ server: {
       icon: ./icons/bun.svg
     }
 
-    public_ingress -> engine: Incoming Requests
-    private_ingress -> engine: Internal Requests
-
     engine -> publisher: Publish API Key
     engine -> validator: Validate API Key
 
@@ -277,6 +289,9 @@ server: {
 
   api.db_connector -> database.engine: Connects To
   api.cache_connector -> cache.engine: Connects To
+
+  private_ingress -> api.engine: Forwards Publish Requests
+  public_ingress -> api.engine: Forwards Validate Requests
 }
 
 admin: {
@@ -287,7 +302,7 @@ user: {
   shape: person
 }
 
-admin -> server.api.private_ingress: Publish Item Key
-server.api.primary_ingress -> admin: Item Key Published
-user -> server.api.public_ingress: Validate Item Key
-server.api.public_ingress -> user: Item Key Validated
+admin -> server.private_ingress: Publish Item Key
+server.private_ingress -> admin: Item Key Published
+user -> server.public_ingress: Validate Item Key
+server.public_ingress -> user: Item Key Validated
