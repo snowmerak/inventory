@@ -1,0 +1,175 @@
+vars: {
+  d2-config: {
+    theme-id: 3 # terrastruct
+    sketch: true
+    layout-engine: elk
+  }
+}
+
+server: {
+    api: {
+        engine: {
+            shape: image
+            icon: ./icons/ElysiaJS.svg
+        }
+
+        publisher: {
+            shape: package
+
+            publishing: {
+                shape: sequence_diagram
+                user: {
+                    note: "User requests to publish a new API key\nfor a specific item with defined permissions."
+                }
+                this: {
+                    note: "API Key Publishing Flow"
+                }
+                generate_api_key: {
+                    note: "Generates a random 64-character API key\nusing a secure random generator."
+                }
+                hash_api_key: {
+                    note: "Hashes the generated API key using\nArgon2id for secure storage."
+                }
+                store_api_key: {
+                    note: "Stores the hashed API key along with\nits metadata in the database.\nChecks for duplicates before storing."
+                }
+
+                user -> this: Request to Publish API Key (item_key, permission, expires_at, max_uses)
+                generating: {
+                    this -> generate_api_key: Generate Random API Key (64 chars)
+                    generate_api_key -> this: Return Original API Key
+                    when_exception: {
+                        this -> user: Return Error (Generation Failed)
+                    }
+                    when_success: {
+                        hashing: {
+                            this -> hash_api_key: Hash API Key (Argon2id)
+                            hash_api_key -> this: Return Hashed API Key
+                            when_exception: {
+                                this -> user: Return Error (Hashing Failed)
+                            }
+                            when_success: {
+                                storing_and_checking: {
+                                    this -> store_api_key: Store API Key in DB and Check duplicate
+                                    store_api_key -> this: Return Success or Error
+                                    when_exception: {
+                                        this -> user: Return Error (Storage Failed or Duplicate)
+                                    }
+                                    when_success: {
+                                        this -> user: Return Original API Key Published (only once)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        validator: {
+            shape: package
+
+            validating: {
+                shape: sequence_diagram
+            }
+        }
+
+        db_connector: {
+            shape: image
+            icon: ./icons/prisma.svg
+        }
+
+        cache_connector: {
+            shape: image
+            icon: ./icons/bun.svg
+        }
+
+        engine -> publisher: Publish API Key
+        engine -> validator: Validate API Key
+
+        publisher -> db_connector: Store API Key
+        validator -> db_connector: Fetch API Key
+        validator -> cache_connector: Fetch API Key
+    }
+
+    cache: {
+        engine: {
+            shape: image
+            icon: ./icons/redis.svg
+        }
+
+        schema: {
+            api_key_cache: {
+                shape: sql_table
+
+                key_template: "inventory:api_key:{api_key}" {
+                    constraint: [primary_key; unique]
+                }
+                hashed_api_key: string
+                item_key: string
+                permission: "[]string"
+                expires_at: datetime
+                used_count: integer
+                max_uses: integer
+            }
+        }   
+
+        schema -> engine: Uses
+    }
+
+    database: {
+        engine: {
+            shape: image
+            icon: ./icons/mongodb.svg
+        }
+
+        schema: {
+            api_key: {
+                shape: sql_table
+
+                id: uuid {
+                    constraint: [primary_key; unique]
+                }
+                hashed_api_key: string {
+                    constraint: [unique]
+                }
+                item_key: string {
+                    constraint: []
+                }
+                permission: "[]string" {
+                    constraint: []
+                }
+                published_at: datetime {
+                    constraint: []
+                }
+                expires_at: datetime {
+                    constraint: []
+                }
+                used_count: integer {
+                    constraint: [default: 0]
+                }
+                max_uses: integer {
+                    constraint: []
+                }
+            }
+        }
+
+        schema -> engine: Uses
+    }
+
+    api.db_connector -> database.engine: Connects To
+    api.cache_connector -> cache.engine: Connects To
+}
+
+admin: {
+    shape: person
+}
+
+user: {
+    shape: person
+}
+
+admin -> server.api: Publish Item Key
+server.api -> admin: Item Key Published
+user -> server.api: Validate Item Key
+server.api -> user: Item Key Validated
