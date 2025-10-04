@@ -2,38 +2,38 @@
 
 ## 🚀 Option 1: Full Docker Compose (Recommended)
 
-모든 것이 자동으로 설정됩니다!
+Everything is set up automatically!
 
 ### 1. Build and Start All Services
 ```powershell
 bun run docker:up:build
 ```
 
-이것 하나로:
-- ✅ MongoDB 시작
-- ✅ Redis 시작
-- ✅ TTL 인덱스 자동 생성
-- ✅ Prisma 클라이언트 생성
-- ✅ Inventory API 서버 시작
+This single command:
+- ✅ Starts MongoDB
+- ✅ Starts Redis
+- ✅ Automatically creates TTL index
+- ✅ Generates Prisma client
+- ✅ Starts Inventory API server
 
 ### 2. Check Status
 ```powershell
-# 모든 로그 확인
+# View all logs
 bun run docker:logs
 
-# 앱 로그만 확인
+# View app logs only
 bun run docker:logs:app
 
-# 헬스 체크
+# Health check
 curl http://localhost:3030/health
 ```
 
 ### 3. Stop Services
 ```powershell
-# 서비스만 중지 (데이터 유지)
+# Stop services only (keep data)
 bun run docker:down
 
-# 데이터까지 삭제
+# Remove data as well
 bun run docker:down:volumes
 ```
 
@@ -41,17 +41,17 @@ bun run docker:down:volumes
 
 ## 🛠️ Option 2: Local Development (Without Docker for App)
 
-인프라만 Docker로, 앱은 로컬에서 실행
+Run infrastructure in Docker, app locally
 
 ### 1. Start Infrastructure Only
-먼저 docker-compose.yml을 수정하여 `app` 서비스 주석 처리:
+First, comment out the `app` service in docker-compose.yml:
 ```yaml
 # app:
 #   build:
 #   ...
 ```
 
-또는 개별 서비스만 시작:
+Or start individual services only:
 ```powershell
 docker-compose up -d mongodb redis setup
 ```
@@ -234,7 +234,7 @@ db.api_keys.createIndex({ "expires_at": 1 }, { expireAfterSeconds: 0 })
 
 ## 📚 Next Steps
 
-- Read full API documentation: `docs/API.md`
+- Read full API documentation: See README.md
 - Learn about architecture: `docs/blueprint.d2`
 - Set up production: See README.md
 

@@ -1,8 +1,8 @@
-# Elysia 타입 스키마 가이드
+# Elysia Type Schema Guide
 
-이 프로젝트의 모든 API 엔드포인트는 Elysia의 TypeBox 기반 스키마 시스템을 사용하여 런타임 타입 검증을 수행합니다.
+All API endpoints in this project use Elysia's TypeBox-based schema system to perform runtime type validation.
 
-## 적용된 변경 사항
+## Applied Changes
 
 ### 1. API Routes (`src/routes/api.ts`)
 
@@ -10,32 +10,32 @@
 **Request Body Schema:**
 ```typescript
 {
-  itemKey: string,        // 최소 1자, scheme://service/key?query 형식
-  permission: string[],   // 최소 1개 이상의 권한
-  expiresAt: string,      // ISO 8601 datetime 형식
-  maxUses: number         // 최소 1 이상
+  itemKey: string,        // Min 1 char, format: scheme://service/key?query
+  permission: string[],   // At least 1 permission required
+  expiresAt: string,      // ISO 8601 datetime format
+  maxUses: number         // Minimum 1
 }
 ```
 
 **Response Schema:**
-- `200`: 성공 시 API 키 정보 반환
-- `400`: 검증 실패 시 에러
-- `500`: 서버 내부 오류
+- `200`: Returns API key information on success
+- `400`: Validation failure error
+- `500`: Internal server error
 
 #### POST `/api/keys/validate`
 **Request Body Schema:**
 ```typescript
 {
-  apiKey: string  // 최소 1자
+  apiKey: string  // Min 1 char
 }
 ```
 
 **Response Schema:**
-- `200`: 유효한 키 정보 반환
-- `400`: 검증 실패
-- `401`: 인증 실패
-- `429`: 레이트 리밋 초과
-- `500`: 서버 내부 오류
+- `200`: Returns valid key information
+- `400`: Validation failure
+- `401`: Authentication failure
+- `429`: Rate limit exceeded
+- `500`: Internal server error
 
 ### 2. Admin Routes (`src/routes/admin.ts`)
 
@@ -43,7 +43,7 @@
 **Query Parameter Schema:**
 ```typescript
 {
-  itemKey: string  // 필수, 최소 1자
+  itemKey: string  // Required, min 1 char
 }
 ```
 
@@ -51,7 +51,7 @@
 **URL Parameter Schema:**
 ```typescript
 {
-  hashedApiKey: string  // 필수, Argon2id 해시값
+  hashedApiKey: string  // Required, Argon2id hash value
 }
 ```
 
@@ -59,83 +59,83 @@
 **URL Parameter Schema:**
 ```typescript
 {
-  hashedApiKey: string  // 필수
+  hashedApiKey: string  // Required
 }
 ```
 
 #### POST `/admin/keys/cleanup`
-만료된 API 키를 삭제합니다. 파라미터 없음.
+Deletes expired API keys. No parameters required.
 
 #### GET `/admin/stats`
-전체 통계를 조회합니다. 파라미터 없음.
+Retrieves overall statistics. No parameters required.
 
 #### GET `/admin/metrics`
-시스템 메트릭을 조회합니다. 파라미터 없음.
+Retrieves system metrics. No parameters required.
 
-## 스키마 검증의 장점
+## Benefits of Schema Validation
 
-### 1. **런타임 타입 안정성**
+### 1. **Runtime Type Safety**
 ```typescript
-// ❌ 이전: 타입 캐스팅만 사용 (런타임 검증 없음)
+// ❌ Before: Type casting only (no runtime validation)
 const request = body as PublishApiKeyRequest
 
-// ✅ 현재: 스키마로 자동 검증
+// ✅ Now: Automatic validation with schema
 body: t.Object({
   itemKey: t.String({ minLength: 1 }),
   // ...
 })
 ```
 
-### 2. **자동 문서화**
-Elysia는 스키마를 기반으로 자동으로 OpenAPI 문서를 생성할 수 있습니다.
+### 2. **Automatic Documentation**
+Elysia can automatically generate OpenAPI documentation based on schemas.
 
-### 3. **명확한 에러 메시지**
-잘못된 요청이 들어오면 어떤 필드가 문제인지 명확하게 알 수 있습니다.
+### 3. **Clear Error Messages**
+When invalid requests come in, you can clearly see which field has the problem.
 
-### 4. **타입 추론**
-TypeScript가 스키마에서 타입을 자동으로 추론하므로 `as` 캐스팅이 불필요합니다.
+### 4. **Type Inference**
+TypeScript automatically infers types from schemas, eliminating the need for `as` casting.
 
-## TypeBox 스키마 타입
+## TypeBox Schema Types
 
-### 기본 타입
-- `t.String()` - 문자열
-- `t.Number()` - 숫자
-- `t.Integer()` - 정수
-- `t.Boolean()` - 불리언
-- `t.Array(type)` - 배열
-- `t.Object({ ... })` - 객체
+### Basic Types
+- `t.String()` - String
+- `t.Number()` - Number
+- `t.Integer()` - Integer
+- `t.Boolean()` - Boolean
+- `t.Array(type)` - Array
+- `t.Object({ ... })` - Object
 
-### 제약 조건
+### Constraints
 ```typescript
 t.String({
-  minLength: 1,           // 최소 길이
-  maxLength: 100,         // 최대 길이
-  format: 'date-time',    // 형식 (email, uri, date-time 등)
-  pattern: '^[a-z]+$',    // 정규식 패턴
-  description: '...',     // 문서화용 설명
-  examples: ['...']       // 예제 값
+  minLength: 1,           // Minimum length
+  maxLength: 100,         // Maximum length
+  format: 'date-time',    // Format (email, uri, date-time, etc.)
+  pattern: '^[a-z]+$',    // Regex pattern
+  description: '...',     // Description for documentation
+  examples: ['...']       // Example values
 })
 
 t.Integer({
-  minimum: 1,             // 최솟값
-  maximum: 1000,          // 최댓값
-  exclusiveMinimum: 0,    // 0 초과
-  exclusiveMaximum: 100   // 100 미만
+  minimum: 1,             // Minimum value
+  maximum: 1000,          // Maximum value
+  exclusiveMinimum: 0,    // Greater than 0
+  exclusiveMaximum: 100   // Less than 100
 })
 ```
 
-### 특수 타입
-- `t.Literal(value)` - 정확한 값 매칭 (예: `t.Literal(true)`)
-- `t.Union([type1, type2])` - 여러 타입 중 하나
-- `t.Optional(type)` - 선택적 필드
-- `t.Nullable(type)` - null 허용
+### Special Types
+- `t.Literal(value)` - Exact value matching (e.g., `t.Literal(true)`)
+- `t.Union([type1, type2])` - One of multiple types
+- `t.Optional(type)` - Optional field
+- `t.Nullable(type)` - Allows null
 
-## 사용 예제
+## Usage Examples
 
-### Request Body 검증
+### Request Body Validation
 ```typescript
 .post('/endpoint', async ({ body }) => {
-  // body는 이미 검증됨, 타입 안전
+  // body is already validated, type-safe
   const { itemKey, permission } = body
   // ...
 }, {
@@ -146,7 +146,7 @@ t.Integer({
 })
 ```
 
-### Query Parameters 검증
+### Query Parameters Validation
 ```typescript
 .get('/endpoint', async ({ query }) => {
   const { page, limit } = query
@@ -159,19 +159,19 @@ t.Integer({
 })
 ```
 
-### URL Parameters 검증
+### URL Parameters Validation
 ```typescript
 .get('/users/:id', async ({ params }) => {
   const { id } = params
   // ...
 }, {
   params: t.Object({
-    id: t.String({ pattern: '^[0-9a-f]{24}$' }) // MongoDB ObjectId 형식
+    id: t.String({ pattern: '^[0-9a-f]{24}$' }) // MongoDB ObjectId format
   })
 })
 ```
 
-### Response Schema 정의
+### Response Schema Definition
 ```typescript
 .get('/endpoint', handler, {
   response: {
@@ -190,9 +190,9 @@ t.Integer({
 })
 ```
 
-## 추가 개선 사항
+## Additional Improvements
 
-### 1. OpenAPI 문서 생성
+### 1. OpenAPI Documentation Generation
 ```typescript
 import { swagger } from '@elysiajs/swagger'
 
@@ -208,8 +208,8 @@ const app = new Elysia()
   // ... routes
 ```
 
-### 2. 스키마 재사용
-공통 스키마를 별도 파일로 분리:
+### 2. Schema Reusability
+Extract common schemas to separate files:
 ```typescript
 // src/schemas/api-key.schema.ts
 export const ApiKeySchema = t.Object({
@@ -219,7 +219,7 @@ export const ApiKeySchema = t.Object({
 })
 ```
 
-### 3. 커스텀 검증
+### 3. Custom Validation
 ```typescript
 import { t } from 'elysia'
 
@@ -229,7 +229,7 @@ const ItemKeySchema = t.String({
 })
 ```
 
-## 참고 자료
+## References
 
 - [Elysia Type System](https://elysiajs.com/validation/overview.html)
 - [TypeBox Documentation](https://github.com/sinclairzx81/typebox)
