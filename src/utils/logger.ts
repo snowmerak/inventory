@@ -58,37 +58,24 @@ export async function configureLogger(): Promise<void> {
     sinks: {
       console: getConsoleSink({
         formatter(log) {
-          // Development: Human-readable format
-          if (isDevelopment) {
-            const timestamp = new Date().toISOString()
-            const category = log.category.join('.')
-            const maskedProperties = maskSensitiveData(log.properties)
-            
-            const parts = [
-              `[${timestamp}]`,
-              `[${log.level.toUpperCase()}]`,
-              `[${category}]`,
-              log.message
-            ]
-            
-            // Add properties if any
-            if (Object.keys(maskedProperties).length > 0) {
-              parts.push(JSON.stringify(maskedProperties, null, 2))
-            }
-            
-            return parts.join(' ')
-          }
-          
-          // Production: Structured JSON format
           const maskedProperties = maskSensitiveData(log.properties)
           
-          return JSON.stringify({
+          // Unified JSON format for both development and production
+          const logEntry = {
             timestamp: new Date().toISOString(),
             level: log.level,
             category: log.category.join('.'),
             message: log.message,
             ...maskedProperties
-          })
+          }
+          
+          // Development: Pretty-printed JSON
+          if (isDevelopment) {
+            return JSON.stringify(logEntry, null, 2)
+          }
+          
+          // Production: Compact JSON
+          return JSON.stringify(logEntry)
         }
       })
     },
