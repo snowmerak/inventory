@@ -16,6 +16,207 @@ A secure, high-performance API key management system with dual-hash strategy, di
 - 📈 **Monitoring**: Built-in metrics tracking and reporting
 - 🐳 **Docker Ready**: Complete Docker Compose setup
 - ✅ **Fully Tested**: Comprehensive integration test suite
+- 📝 **Structured Logging**: JSON logging with LogTape, sensitive data masking, and performance tracking
+
+## 📝 Logging System
+
+### Overview
+
+The system uses **[LogTape](https://github.com/dahlia/logtape)** for enterprise-grade structured logging with the following features:
+
+- **Structured JSON Output**: All logs are formatted as JSON for easy parsing and analysis
+- **Sensitive Data Masking**: Automatic masking of API keys, hashes, passwords, and MongoDB credentials
+- **Performance Tracking**: Built-in timing utilities for measuring operation duration
+- **Caller Information**: Every log includes the calling function for full traceability
+- **Categorized Loggers**: Separate loggers for app, database, cache, service, API, and admin operations
+
+### Log Format
+
+```json
+{
+  "timestamp": "2025-10-05T10:35:51.693Z",
+  "level": "info",
+  "category": "inventory.api",
+  "message": ["API key validated successfully"],
+  "itemKey": "myapp://users/123",
+  "usedCount": 5,
+  "maxUses": 1000,
+  "clientIp": "192.168.1.100",
+  "caller": "apiRoute.validate"
+}
+```
+
+### Log Categories
+
+| Category | Purpose | Examples |
+|----------|---------|----------|
+| `inventory.app` | Application lifecycle | Startup, shutdown, health checks |
+| `inventory.db` | Database operations | Queries, connections, Prisma operations |
+| `inventory.cache` | Redis operations | Cache hits/misses, lock operations |
+| `inventory.service` | Business logic | Key publishing, validation, admin tasks |
+| `inventory.api` | Public API endpoints | Request/response, rate limiting |
+| `inventory.admin` | Admin operations | Stats, metrics, revocation |
+
+### Log Levels
+
+- **DEBUG**: Detailed information for debugging (cache hits, lock acquisition)
+- **INFO**: General informational messages (successful operations)
+- **WARN**: Warning messages (rate limits, validation failures)
+- **ERROR**: Error messages (unexpected errors, database failures)
+
+### Sensitive Data Masking
+
+The logging system automatically masks sensitive information:
+
+```typescript
+// API Keys: Shows only first 8 characters
+"apiKey-abc...def123" → "apiKey-abc***** (masked)"
+
+// Hashes: Shows only first 16 characters  
+"$argon2id$v=19$..." → "$argon2id$v=19$m***** (masked)"
+
+// Passwords: Fully masked
+"mySecretPassword" → "******* (masked)"
+
+// MongoDB URIs: Credentials removed
+"mongodb://user:pass@host/db" → "mongodb://***:***@host/db"
+```
+
+### Performance Tracking
+
+Built-in performance timing utilities:
+
+```typescript
+import { performance } from './utils/logger'
+
+// Start timing
+const timer = performance.start('operation.name')
+
+try {
+  // ... your code ...
+  
+  // End timing with success
+  timer.end({ success: true, additionalData: value })
+} catch (error) {
+  // Track error with timing
+  timer.error(error, { context: 'additional info' })
+}
+```
+
+### Viewing Logs
+
+#### Development (Docker)
+```bash
+# Follow all logs
+docker-compose logs -f app
+
+# Filter by category
+docker-compose logs app | grep "inventory.api"
+
+# Filter by level
+docker-compose logs app | grep "\"level\":\"error\""
+```
+
+#### Production
+```bash
+# Using jq for JSON parsing
+docker-compose logs app | jq 'select(.level == "error")'
+
+# Filter by category
+docker-compose logs app | jq 'select(.category | contains("cache"))'
+
+# Show only messages and timestamps
+docker-compose logs app | jq '{timestamp, message, caller}'
+```
+
+### Log Analysis
+
+#### Common Queries
+
+```bash
+# Find all errors in the last hour
+docker-compose logs --since 1h app | jq 'select(.level == "error")'
+
+# Track API key validation performance
+docker-compose logs app | jq 'select(.message[0] | contains("validated")) | {timestamp, duration: .durationMs}'
+
+# Monitor cache hit rate
+docker-compose logs app | jq 'select(.message[0] | contains("Cache")) | .message'
+
+# Find rate limit violations
+docker-compose logs app | jq 'select(.message[0] | contains("Rate limit")) | {timestamp, clientIp, caller}'
+```
+
+#### Integration with Log Aggregation
+
+The structured JSON format integrates seamlessly with:
+
+- **ELK Stack** (Elasticsearch, Logstash, Kibana)
+- **Grafana Loki** - Log aggregation system
+- **Datadog** - Monitoring and analytics
+- **CloudWatch** - AWS logging service
+- **Splunk** - Log analysis platform
+
+Example Logstash configuration:
+
+```ruby
+input {
+  docker {
+    type => "inventory-api"
+  }
+}
+
+filter {
+  json {
+    source => "message"
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["localhost:9200"]
+    index => "inventory-logs-%{+YYYY.MM.dd}"
+  }
+}
+```
+
+### Logger Configuration
+
+The logger is configured in `src/utils/logger.ts`:
+
+```typescript
+import { configureLogger, logger, performance } from './utils/logger'
+
+// Initialize at application startup
+await configureLogger()
+
+// Use in your code
+logger.api.info('Request received', {
+  method: 'POST',
+  path: '/api/keys/validate',
+  caller: 'apiRoute.validate'
+})
+
+// Performance tracking
+const timer = performance.start('db.query')
+// ... operation ...
+timer.end({ success: true, rows: 42 })
+```
+
+### Custom Logging
+
+Add custom context to any log:
+
+```typescript
+logger.service.info('Processing batch', {
+  batchId: 'batch-123',
+  itemCount: 50,
+  startTime: new Date(),
+  caller: 'BatchProcessor.process'
+})
+```
+
+For detailed logging documentation, see [docs/LOGGING.md](docs/LOGGING.md).
 
 ## 🏗️ Tech Stack
 
@@ -24,6 +225,7 @@ A secure, high-performance API key management system with dual-hash strategy, di
 - **Database**: [MongoDB 7](https://www.mongodb.com) with [Prisma](https://www.prisma.io)
 - **Cache**: [Redis 7](https://redis.io) with [ioredis](https://github.com/redis/ioredis)
 - **Security**: [Argon2id](https://github.com/ranisalt/node-argon2) password hashing
+- **Logging**: [LogTape](https://github.com/dahlia/logtape) - Structured JSON logging
 
 ## 🚀 Quick Start
 
@@ -88,16 +290,17 @@ curl -X POST http://localhost:3030/api/keys/validate \
 
 ## 📖 Table of Contents
 
-1. [Architecture](#-architecture)
-2. [API Documentation](#-api-documentation)
-3. [Development](#-development)
-4. [Testing](#-testing)
-5. [Docker Deployment](#-docker-deployment)
-6. [Configuration](#-configuration)
-7. [Monitoring](#-monitoring)
-8. [Security](#-security)
-9. [Troubleshooting](#-troubleshooting)
-10. [Contributing](#-contributing)
+1. [Logging System](#-logging-system)
+2. [Architecture](#-architecture)
+3. [API Documentation](#-api-documentation)
+4. [Development](#-development)
+5. [Testing](#-testing)
+6. [Docker Deployment](#-docker-deployment)
+7. [Configuration](#-configuration)
+8. [Monitoring](#-monitoring)
+9. [Security](#-security)
+10. [Troubleshooting](#-troubleshooting)
+11. [Contributing](#-contributing)
 
 ---
 
@@ -433,7 +636,8 @@ inventory/
 │   │   ├── api.ts                # Request/response types
 │   │   └── errors.ts             # Custom error classes
 │   ├── utils/
-│   │   └── crypto.ts             # Hashing utilities
+│   │   ├── crypto.ts             # Hashing utilities
+│   │   └── logger.ts             # LogTape logging configuration
 │   └── index.ts                   # Application entry point
 ├── tests/
 │   └── api.test.ts               # Integration tests
@@ -1146,6 +1350,7 @@ Built with:
 - [Prisma](https://www.prisma.io) - Next-generation ORM
 - [MongoDB](https://www.mongodb.com) - NoSQL database
 - [Redis](https://redis.io) - In-memory data store
+- [LogTape](https://github.com/dahlia/logtape) - Structured logging library
 
 ---
 
