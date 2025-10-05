@@ -8,6 +8,7 @@ import { ApiError, RateLimitError, LockAcquisitionError } from '../types/errors'
 import { RateLimiter, getClientIp } from '../middleware/rate-limiter'
 import { metrics } from '../monitoring/metrics'
 import type { EnvConfig } from '../config/env'
+import { logger, performance } from '../utils/logger'
 
 /**
  * Create API routes for API key management
@@ -24,105 +25,68 @@ export function createApiRoutes(
   return new Elysia({ prefix: '/api' })
     // Publisher endpoint (Private Ingress)
     .post('/keys/publish', async ({ body, set }) => {
+      const timer = performance.start('POST /api/keys/publish', {
+        caller: 'apiRoute.publish'
+      })
+      
       try {
-        // Body is already validated by schema, no need for 'as' casting
-        const request = body
-        const response = await publisherService.publishApiKey(request)
-        return response
-      } catch (error) {
-        if (error instanceof ApiError) {
-          set.status = error.statusCode
-          return {
-            success: false,
-            error: {
-              code: error.code,
-              message: error.message
-            }
-          }
-        }
+        logger.api.info('Received publish request', {
+          itemKey: body.itemKey,
+          permissions: body.permission,
+          caller: 'apiRoute.publish'
+        })
         
-        console.error('Unexpected error in publish:', error)
-        set.status = 500
-        return {
-          success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: 'An unexpected error occurred'
-          }
-        }
-      }
-    }, {
-      body: t.Object({
-        itemKey: t.String({
-          description: 'Item key in format: <scheme>://<service>/<key>?<query>',
-          minLength: 1,
-          examples: ['https://example.com/item/123?variant=blue']
-        }),
-        permission: t.Array(t.String(), {
-          description: 'Array of permission strings',
-          minItems: 1,
-          examples: [['read', 'write']]
-        }),
-        expiresAt: t.String({
-          description: 'Expiration date in ISO 8601 format',
-          format: 'date-time',
-          examples: ['2025-12-31T23:59:59Z']
-        }),
-        maxUses: t.Integer({
-          description: 'Maximum number of uses allowed',
-          minimum: 1,
-          examples: [1000]
-        })
-      }),
-      response: {
-        200: t.Object({
-          success: t.Boolean(),
-          data: t.Object({
-            apiKey: t.String({ description: 'Generated API key (shown only once!)' }),
-            itemKey: t.String(),
-            permission: t.Array(t.String()),
-            publishedAt: t.String({ format: 'date-time' }),
-            expiresAt: t.String({ format: 'date-time' }),
-            maxUses: t.Integer()
-          })
-        }),
-        400: t.Object({
-          success: t.Boolean(),
-          error: t.Object({
-            code: t.String(),
-            message: t.String()
-          })
-        }),
-        500: t.Object({
-          success: t.Boolean(),
-          error: t.Object({
-            code: t.String(),
-            message: t.String()
-          })
-        })
-      }
-    })
-
-    // Validator endpoint (Public Ingress with Rate Limiting)
-    .post('/keys/validate', async ({ body, set, request }) => {
-      try {
-        // Apply rate limiting
-        const clientIp = getClientIp(request)
-        await rateLimiter.checkLimit(clientIp, env.rateLimitMax, env.rateLimitWindow)
-
         // Body is already validated by schema
         const validateRequest = body
         const response = await validatorService.validateApiKey(validateRequest)
+        
+        timer.end({
+          success: true,
+          status: 200,
+          clientIp
+        })
+        
+        logger.api.info('Validate request completed', {
+          clientIp,
+          valid: response.data.valid,
+          status: 200,
+          caller: 'apiRoute.validate'
+        })
+        
         return response
       } catch (error) {
+        const clientIp = getClientIp(request)
+        
         // Track specific error types in metrics
         if (error instanceof RateLimitError) {
           metrics.incrementRateLimitErrors()
+          logger.api.warn('Rate limit exceeded', {
+            clientIp,
+            caller: 'apiRoute.validate'
+          })
         } else if (error instanceof LockAcquisitionError) {
           metrics.incrementLockAcquisitionErrors()
+          logger.api.error('Lock acquisition failed', {
+            clientIp,
+            caller: 'apiRoute.validate'
+          })
         }
 
         if (error instanceof ApiError) {
+          timer.error(error as Error, {
+            errorCode: error.code,
+            status: error.statusCode,
+            clientIp
+          })
+          
+          logger.api.warn('Validate request failed', {
+            clientIp,
+            errorCode: error.code,
+            errorMessage: error.message,
+            status: error.statusCode,
+            caller: 'apiRoute.validate'
+          })
+          
           set.status = error.statusCode
           return {
             success: false,
@@ -133,7 +97,15 @@ export function createApiRoutes(
           }
         }
         
-        console.error('Unexpected error in validate:', error)
+        timer.error(error as Error, { status: 500, clientIp })
+        
+        logger.api.error('Unexpected error in validate', {
+          clientIp,
+          error: (error as Error).message,
+          errorStack: (error as Error).stack,
+          caller: 'apiRoute.validate'
+        })
+        
         set.status = 500
         return {
           success: false,

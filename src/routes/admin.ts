@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client'
 import { AdminService } from '../services/admin'
 import { ApiError } from '../types/errors'
 import { metrics } from '../monitoring/metrics'
+import { logger, performance } from '../utils/logger'
 
 /**
  * Create admin routes for API key management
@@ -14,11 +15,45 @@ export function createAdminRoutes(prisma: PrismaClient) {
   return new Elysia({ prefix: '/admin' })
     // List API keys by item (query parameter to avoid route conflict)
     .get('/keys/by-item', async ({ query, set }) => {
+      const timer = performance.start('admin.listByItem')
+      
       try {
         const itemKey = query.itemKey
-        return await adminService.listKeysByItem(itemKey)
+        
+        logger.admin.debug('Listing API keys by item', {
+          itemKey,
+          caller: 'adminRoute.listByItem'
+        })
+        
+        const result = await adminService.listKeysByItem(itemKey)
+        
+        timer.end({ success: true, itemKey, count: result.data?.keys?.length || 0 })
+        
+        logger.admin.info('Listed API keys by item', {
+          itemKey,
+          count: result.data?.keys?.length || 0,
+          caller: 'adminRoute.listByItem'
+        })
+        
+        return result
       } catch (error) {
+        const itemKey = query.itemKey
+        
         if (error instanceof ApiError) {
+          timer.error(error as Error, {
+            errorCode: error.code,
+            status: error.statusCode,
+            itemKey
+          })
+          
+          logger.admin.warn('List keys by item failed', {
+            itemKey,
+            errorCode: error.code,
+            errorMessage: error.message,
+            status: error.statusCode,
+            caller: 'adminRoute.listByItem'
+          })
+          
           set.status = error.statusCode
           return {
             success: false,
@@ -29,7 +64,15 @@ export function createAdminRoutes(prisma: PrismaClient) {
           }
         }
         
-        console.error('Unexpected error in list keys:', error)
+        timer.error(error as Error, { status: 500, itemKey })
+        
+        logger.admin.error('Unexpected error in list keys', {
+          itemKey,
+          error: (error as Error).message,
+          errorStack: (error as Error).stack,
+          caller: 'adminRoute.listByItem'
+        })
+        
         set.status = 500
         return {
           success: false,
@@ -50,10 +93,42 @@ export function createAdminRoutes(prisma: PrismaClient) {
 
     // Get API key statistics by hashed key
     .get('/keys/stats/:hashedApiKey', async ({ params, set }) => {
+      const timer = performance.start('admin.getKeyStats')
+      
       try {
-        return await adminService.getKeyStats(params.hashedApiKey)
+        logger.admin.debug('Getting API key statistics', {
+          hashedApiKey: params.hashedApiKey,
+          caller: 'adminRoute.getKeyStats'
+        })
+        
+        const result = await adminService.getKeyStats(params.hashedApiKey)
+        
+        timer.end({ success: true, hashedApiKey: params.hashedApiKey })
+        
+        logger.admin.info('Retrieved API key statistics', {
+          hashedApiKey: params.hashedApiKey,
+          caller: 'adminRoute.getKeyStats'
+        })
+        
+        return result
       } catch (error) {
+        const hashedApiKey = params.hashedApiKey
+        
         if (error instanceof ApiError) {
+          timer.error(error as Error, {
+            errorCode: error.code,
+            status: error.statusCode,
+            hashedApiKey
+          })
+          
+          logger.admin.warn('Get key stats failed', {
+            hashedApiKey,
+            errorCode: error.code,
+            errorMessage: error.message,
+            status: error.statusCode,
+            caller: 'adminRoute.getKeyStats'
+          })
+          
           set.status = error.statusCode
           return {
             success: false,
@@ -64,7 +139,15 @@ export function createAdminRoutes(prisma: PrismaClient) {
           }
         }
         
-        console.error('Unexpected error in get stats:', error)
+        timer.error(error as Error, { status: 500, hashedApiKey })
+        
+        logger.admin.error('Unexpected error in get stats', {
+          hashedApiKey,
+          error: (error as Error).message,
+          errorStack: (error as Error).stack,
+          caller: 'adminRoute.getKeyStats'
+        })
+        
         set.status = 500
         return {
           success: false,
@@ -85,10 +168,42 @@ export function createAdminRoutes(prisma: PrismaClient) {
 
     // Revoke an API key
     .delete('/keys/revoke/:hashedApiKey', async ({ params, set }) => {
+      const timer = performance.start('admin.revokeKey')
+      
       try {
-        return await adminService.revokeKey(params.hashedApiKey, prisma)
+        logger.admin.info('Revoking API key', {
+          hashedApiKey: params.hashedApiKey,
+          caller: 'adminRoute.revokeKey'
+        })
+        
+        const result = await adminService.revokeKey(params.hashedApiKey, prisma)
+        
+        timer.end({ success: true, hashedApiKey: params.hashedApiKey })
+        
+        logger.admin.info('Revoked API key successfully', {
+          hashedApiKey: params.hashedApiKey,
+          caller: 'adminRoute.revokeKey'
+        })
+        
+        return result
       } catch (error) {
+        const hashedApiKey = params.hashedApiKey
+        
         if (error instanceof ApiError) {
+          timer.error(error as Error, {
+            errorCode: error.code,
+            status: error.statusCode,
+            hashedApiKey
+          })
+          
+          logger.admin.warn('Revoke key failed', {
+            hashedApiKey,
+            errorCode: error.code,
+            errorMessage: error.message,
+            status: error.statusCode,
+            caller: 'adminRoute.revokeKey'
+          })
+          
           set.status = error.statusCode
           return {
             success: false,
@@ -99,7 +214,15 @@ export function createAdminRoutes(prisma: PrismaClient) {
           }
         }
         
-        console.error('Unexpected error in revoke key:', error)
+        timer.error(error as Error, { status: 500, hashedApiKey })
+        
+        logger.admin.error('Unexpected error in revoke key', {
+          hashedApiKey,
+          error: (error as Error).message,
+          errorStack: (error as Error).stack,
+          caller: 'adminRoute.revokeKey'
+        })
+        
         set.status = 500
         return {
           success: false,
@@ -120,10 +243,37 @@ export function createAdminRoutes(prisma: PrismaClient) {
 
     // Cleanup expired keys
     .post('/keys/cleanup', async ({ set }) => {
+      const timer = performance.start('admin.cleanupExpired')
+      
       try {
-        return await adminService.cleanupExpired()
+        logger.admin.info('Starting cleanup of expired keys', {
+          caller: 'adminRoute.cleanupExpired'
+        })
+        
+        const result = await adminService.cleanupExpired()
+        
+        timer.end({ success: true, deletedCount: result.data?.deletedCount || 0 })
+        
+        logger.admin.info('Cleanup completed', {
+          deletedCount: result.data?.deletedCount || 0,
+          caller: 'adminRoute.cleanupExpired'
+        })
+        
+        return result
       } catch (error) {
         if (error instanceof ApiError) {
+          timer.error(error as Error, {
+            errorCode: error.code,
+            status: error.statusCode
+          })
+          
+          logger.admin.warn('Cleanup failed', {
+            errorCode: error.code,
+            errorMessage: error.message,
+            status: error.statusCode,
+            caller: 'adminRoute.cleanupExpired'
+          })
+          
           set.status = error.statusCode
           return {
             success: false,
@@ -134,7 +284,14 @@ export function createAdminRoutes(prisma: PrismaClient) {
           }
         }
         
-        console.error('Unexpected error in cleanup:', error)
+        timer.error(error as Error, { status: 500 })
+        
+        logger.admin.error('Unexpected error in cleanup', {
+          error: (error as Error).message,
+          errorStack: (error as Error).stack,
+          caller: 'adminRoute.cleanupExpired'
+        })
+        
         set.status = 500
         return {
           success: false,
@@ -148,10 +305,36 @@ export function createAdminRoutes(prisma: PrismaClient) {
 
     // Get overall statistics
     .get('/stats', async ({ set }) => {
+      const timer = performance.start('admin.getOverallStats')
+      
       try {
-        return await adminService.getOverallStats(prisma)
+        logger.admin.debug('Getting overall statistics', {
+          caller: 'adminRoute.getOverallStats'
+        })
+        
+        const result = await adminService.getOverallStats(prisma)
+        
+        timer.end({ success: true })
+        
+        logger.admin.info('Retrieved overall statistics', {
+          caller: 'adminRoute.getOverallStats'
+        })
+        
+        return result
       } catch (error) {
         if (error instanceof ApiError) {
+          timer.error(error as Error, {
+            errorCode: error.code,
+            status: error.statusCode
+          })
+          
+          logger.admin.warn('Get overall stats failed', {
+            errorCode: error.code,
+            errorMessage: error.message,
+            status: error.statusCode,
+            caller: 'adminRoute.getOverallStats'
+          })
+          
           set.status = error.statusCode
           return {
             success: false,
@@ -162,7 +345,14 @@ export function createAdminRoutes(prisma: PrismaClient) {
           }
         }
         
-        console.error('Unexpected error in get overall stats:', error)
+        timer.error(error as Error, { status: 500 })
+        
+        logger.admin.error('Unexpected error in get overall stats', {
+          error: (error as Error).message,
+          errorStack: (error as Error).stack,
+          caller: 'adminRoute.getOverallStats'
+        })
+        
         set.status = 500
         return {
           success: false,
@@ -176,14 +366,34 @@ export function createAdminRoutes(prisma: PrismaClient) {
 
     // Get metrics
     .get('/metrics', async ({ set }) => {
+      const timer = performance.start('admin.getMetrics')
+      
       try {
+        logger.admin.debug('Getting metrics', {
+          caller: 'adminRoute.getMetrics'
+        })
+        
         const metricsData = metrics.getMetrics()
+        
+        timer.end({ success: true })
+        
+        logger.admin.info('Retrieved metrics', {
+          caller: 'adminRoute.getMetrics'
+        })
+        
         return {
           success: true,
           data: metricsData
         }
       } catch (error) {
-        console.error('Unexpected error in get metrics:', error)
+        timer.error(error as Error, { status: 500 })
+        
+        logger.admin.error('Unexpected error in get metrics', {
+          error: (error as Error).message,
+          errorStack: (error as Error).stack,
+          caller: 'adminRoute.getMetrics'
+        })
+        
         set.status = 500
         return {
           success: false,

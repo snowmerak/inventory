@@ -1,24 +1,53 @@
 import { hash, verify } from 'argon2'
 import { createHash, randomBytes } from 'crypto'
+import { logger, performance } from './logger'
 
 /**
  * Generate a random API key (64 characters)
  */
 export function generateApiKey(): string {
+  logger.service.debug('Generating new API key', {
+    caller: 'crypto.generateApiKey'
+  })
+  
   // 48 bytes = 64 characters in base64url
-  return randomBytes(48).toString('base64url')
+  const apiKey = randomBytes(48).toString('base64url')
+  
+  logger.service.debug('API key generated', {
+    keyLength: apiKey.length,
+    caller: 'crypto.generateApiKey'
+  })
+  
+  return apiKey
 }
 
 /**
  * Hash an API key using Argon2id
  */
 export async function hashApiKey(apiKey: string): Promise<string> {
-  return hash(apiKey, {
+  const timer = performance.start('crypto.hashApiKey')
+  
+  logger.service.debug('Hashing API key with Argon2id', {
+    apiKey,
+    caller: 'crypto.hashApiKey'
+  })
+  
+  const hashedKey = await hash(apiKey, {
     type: 2, // Argon2id
     memoryCost: 65536, // 64 MB
     timeCost: 3,
     parallelism: 4
   })
+  
+  timer.end({ success: true })
+  
+  logger.service.debug('API key hashed successfully', {
+    apiKey,
+    hashedKey,
+    caller: 'crypto.hashApiKey'
+  })
+  
+  return hashedKey
 }
 
 /**
@@ -39,10 +68,37 @@ export function generateSearchableHash(apiKey: string): string {
  * Verify an API key against its hash
  */
 export async function verifyApiKey(hashedKey: string, apiKey: string): Promise<boolean> {
+  const timer = performance.start('crypto.verifyApiKey')
+  
+  logger.service.debug('Verifying API key', {
+    hashedKey,
+    apiKey,
+    caller: 'crypto.verifyApiKey'
+  })
+  
   try {
-    return await verify(hashedKey, apiKey)
+    const isValid = await verify(hashedKey, apiKey)
+    
+    timer.end({ success: true, isValid })
+    
+    logger.service.debug('API key verification completed', {
+      hashedKey,
+      apiKey,
+      isValid,
+      caller: 'crypto.verifyApiKey'
+    })
+    
+    return isValid
   } catch (error) {
-    console.error('API key verification error:', error)
+    timer.error(error as Error)
+    
+    logger.service.error('API key verification error', {
+      hashedKey,
+      apiKey,
+      error: (error as Error).message,
+      caller: 'crypto.verifyApiKey'
+    })
+    
     return false
   }
 }
