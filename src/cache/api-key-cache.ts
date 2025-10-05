@@ -1,4 +1,5 @@
 import type Redis from 'ioredis'
+import { logger } from '../utils/logger'
 
 /**
  * API Key cache data structure
@@ -33,8 +34,17 @@ export class ApiKeyCache {
     const data = await this.redis.get(cacheKey)
     
     if (!data) {
+      logger.cache.debug('Cache miss for API key', {
+        apiKey,
+        caller: 'ApiKeyCache.get'
+      })
       return null
     }
+    
+    logger.cache.debug('Cache hit for API key', {
+      apiKey,
+      caller: 'ApiKeyCache.get'
+    })
 
     try {
       const parsed = JSON.parse(data)
@@ -43,7 +53,11 @@ export class ApiKeyCache {
         expiresAt: new Date(parsed.expiresAt)
       }
     } catch (error) {
-      console.error('Failed to parse cached API key data:', error)
+      logger.cache.error('Failed to parse cached API key data', {
+        apiKey,
+        error: (error as Error).message,
+        caller: 'ApiKeyCache.get'
+      })
       return null
     }
   }
@@ -58,6 +72,13 @@ export class ApiKeyCache {
       expiresAt: data.expiresAt.toISOString()
     })
     
+    logger.cache.debug('Caching API key data', {
+      apiKey,
+      itemKey: data.itemKey,
+      ttl: ttl || this.defaultTtl,
+      caller: 'ApiKeyCache.set'
+    })
+    
     await this.redis.setex(cacheKey, ttl || this.defaultTtl, serialized)
   }
 
@@ -68,10 +89,22 @@ export class ApiKeyCache {
     const data = await this.get(apiKey)
     
     if (!data) {
+      logger.cache.debug('Cannot increment usage - key not in cache', {
+        apiKey,
+        caller: 'ApiKeyCache.incrementUsage'
+      })
       return null
     }
 
     data.usedCount += 1
+    
+    logger.cache.debug('Incremented usage count', {
+      apiKey,
+      usedCount: data.usedCount,
+      maxUses: data.maxUses,
+      caller: 'ApiKeyCache.incrementUsage'
+    })
+    
     await this.set(apiKey, data)
     
     return data.usedCount
@@ -82,6 +115,12 @@ export class ApiKeyCache {
    */
   async delete(apiKey: string): Promise<void> {
     const cacheKey = this.getCacheKey(apiKey)
+    
+    logger.cache.debug('Deleting API key from cache', {
+      apiKey,
+      caller: 'ApiKeyCache.delete'
+    })
+    
     await this.redis.del(cacheKey)
   }
 

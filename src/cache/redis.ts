@@ -64,7 +64,6 @@ export async function disconnectRedis(): Promise<void> {
     logger.cache.info('Redis client disconnected', { caller: 'disconnectRedis' })
   }
 }
-}
 
 /**
  * Health check for Redis connection

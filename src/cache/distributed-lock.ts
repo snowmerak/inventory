@@ -1,4 +1,5 @@
 import type Redis from 'ioredis'
+import { logger } from '../utils/logger'
 
 /**
  * Distributed lock implementation using Redis
@@ -23,6 +24,12 @@ export class DistributedLock {
     const lockKey = this.getLockKey(resource)
     const lockValue = this.generateLockValue()
     
+    logger.cache.debug('Attempting to acquire lock', {
+      resource,
+      ttl,
+      caller: 'DistributedLock.acquire'
+    })
+    
     // SET NX (set if not exists) with expiry
     const result = await this.redis.set(
       lockKey,
@@ -32,7 +39,20 @@ export class DistributedLock {
       'NX'  // only set if not exists
     )
 
-    return result === 'OK' ? lockValue : null
+    if (result === 'OK') {
+      logger.cache.debug('Lock acquired successfully', {
+        resource,
+        lockValue,
+        caller: 'DistributedLock.acquire'
+      })
+      return lockValue
+    } else {
+      logger.cache.warn('Failed to acquire lock - already held', {
+        resource,
+        caller: 'DistributedLock.acquire'
+      })
+      return null
+    }
   }
 
   /**
@@ -44,6 +64,12 @@ export class DistributedLock {
   async release(resource: string, lockValue: string): Promise<boolean> {
     const lockKey = this.getLockKey(resource)
     
+    logger.cache.debug('Attempting to release lock', {
+      resource,
+      lockValue,
+      caller: 'DistributedLock.release'
+    })
+    
     // Lua script to ensure atomic check-and-delete
     const script = `
       if redis.call("get", KEYS[1]) == ARGV[1] then
@@ -54,7 +80,21 @@ export class DistributedLock {
     `
     
     const result = await this.redis.eval(script, 1, lockKey, lockValue)
-    return result === 1
+    
+    if (result === 1) {
+      logger.cache.debug('Lock released successfully', {
+        resource,
+        caller: 'DistributedLock.release'
+      })
+      return true
+    } else {
+      logger.cache.warn('Failed to release lock - not held or expired', {
+        resource,
+        lockValue,
+        caller: 'DistributedLock.release'
+      })
+      return false
+    }
   }
 
   /**
@@ -68,14 +108,36 @@ export class DistributedLock {
     fn: () => Promise<T>,
     ttl: number = this.defaultTtl
   ): Promise<T> {
+    logger.cache.debug('Executing with lock', {
+      resource,
+      ttl,
+      caller: 'DistributedLock.withLock'
+    })
+    
     const lockValue = await this.acquire(resource, ttl)
     
     if (!lockValue) {
+      logger.cache.error('Failed to acquire lock for withLock execution', {
+        resource,
+        caller: 'DistributedLock.withLock'
+      })
       throw new Error(`Failed to acquire lock for resource: ${resource}`)
     }
 
     try {
-      return await fn()
+      const result = await fn()
+      logger.cache.debug('Function executed successfully with lock', {
+        resource,
+        caller: 'DistributedLock.withLock'
+      })
+      return result
+    } catch (error) {
+      logger.cache.error('Error during locked function execution', {
+        resource,
+        error: (error as Error).message,
+        caller: 'DistributedLock.withLock'
+      })
+      throw error
     } finally {
       await this.release(resource, lockValue)
     }
