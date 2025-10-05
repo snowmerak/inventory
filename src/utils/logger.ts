@@ -119,3 +119,117 @@ export const logger = {
   api: getLogger(['inventory', 'api']),
   admin: getLogger(['inventory', 'admin'])
 }
+
+
+/**
+ * Performance logger for measuring execution time
+ * 
+ * @example
+ * const timer = performance.start('API key validation')
+ * // ... do some work
+ * timer.end({ itemKey: 'myapp://resource/123' })
+ * 
+ * @example
+ * const timer = performance.start('Database query', { query: 'findUnique' })
+ * // ... execute query
+ * timer.end() // Will include initial properties + duration
+ */
+export const performance = {
+  /**
+   * Start a performance timer
+   * @param operation Name of the operation being measured
+   * @param properties Additional properties to include in the log
+   */
+  start(operation: string, properties: Record<string, any> = {}) {
+    const startTime = Date.now()
+    
+    return {
+      /**
+       * End the timer and log the duration
+       * @param additionalProperties Additional properties to add when ending
+       */
+      end(additionalProperties: Record<string, any> = {}) {
+        const duration = Date.now() - startTime
+        
+        logger.app.info(`⏱️ ${operation}`, {
+          operation,
+          duration,
+          durationMs: duration,
+          ...properties,
+          ...additionalProperties,
+          caller: 'performance.timer'
+        })
+        
+        return duration
+      },
+      
+      /**
+       * End with error
+       * @param error Error that occurred
+       * @param additionalProperties Additional properties
+       */
+      error(error: Error, additionalProperties: Record<string, any> = {}) {
+        const duration = Date.now() - startTime
+        
+        logger.app.error(`⏱️ ${operation} failed`, {
+          operation,
+          duration,
+          durationMs: duration,
+          error: error.message,
+          errorStack: error.stack,
+          ...properties,
+          ...additionalProperties,
+          caller: 'performance.timer'
+        })
+        
+        return duration
+      }
+    }
+  },
+  
+  /**
+   * Measure an async function execution time
+   * @param operation Name of the operation
+   * @param fn Async function to measure
+   * @param properties Additional properties
+   */
+  async measure<T>(
+    operation: string,
+    fn: () => Promise<T>,
+    properties: Record<string, any> = {}
+  ): Promise<T> {
+    const timer = this.start(operation, properties)
+    
+    try {
+      const result = await fn()
+      timer.end({ success: true })
+      return result
+    } catch (error) {
+      timer.error(error as Error)
+      throw error
+    }
+  },
+  
+  /**
+   * Measure a sync function execution time
+   * @param operation Name of the operation
+   * @param fn Function to measure
+   * @param properties Additional properties
+   */
+  measureSync<T>(
+    operation: string,
+    fn: () => T,
+    properties: Record<string, any> = {}
+  ): T {
+    const timer = this.start(operation, properties)
+    
+    try {
+      const result = fn()
+      timer.end({ success: true })
+      return result
+    } catch (error) {
+      timer.error(error as Error)
+      throw error
+    }
+  }
+}
