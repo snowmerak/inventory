@@ -95,27 +95,8 @@ export async function configureLogger(): Promise<void> {
     filters: {},
     loggers: [
       {
-        category: 'inventory',
-        sinks: ['console']
-      },
-      {
-        category: ['inventory', 'db'],
-        sinks: ['console']
-      },
-      {
-        category: ['inventory', 'cache'],
-        sinks: ['console']
-      },
-      {
-        category: ['inventory', 'service'],
-        sinks: ['console']
-      },
-      {
-        category: ['inventory', 'api'],
-        sinks: ['console']
-      },
-      {
-        category: ['inventory', 'admin'],
+        category: ['inventory'],
+        lowestLevel: 'debug',
         sinks: ['console']
       }
     ],
