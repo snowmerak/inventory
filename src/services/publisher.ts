@@ -4,6 +4,7 @@ import { ApiKeyRepository } from '../db/api-key-repository'
 import { ValidationError, DuplicateError } from '../types/errors'
 import type { PublishApiKeyRequest, PublishApiKeyResponse } from '../types/api'
 import { metrics } from '../monitoring/metrics'
+import { logger, performance } from '../utils/logger'
 
 /**
  * Publisher Service - Handles API key generation and publishing
@@ -28,9 +29,24 @@ export class PublisherService {
    * 6. Return original API key (only once!)
    */
   async publishApiKey(request: PublishApiKeyRequest): Promise<PublishApiKeyResponse> {
-    const startTime = Date.now()
+    logger.service.info('Publishing API key', {
+      itemKey: request.itemKey,
+      permissions: request.permission,
+      expiresAt: request.expiresAt,
+      maxUses: request.maxUses,
+      caller: 'PublisherService.publishApiKey'
+    })
+    
+    const timer = performance.start('API key publishing', {
+      itemKey: request.itemKey,
+      caller: 'PublisherService.publishApiKey'
+    })
     // Validate item key format
     if (!validateItemKey(request.itemKey)) {
+      logger.service.warn('Invalid item key format', {
+        itemKey: request.itemKey,
+        caller: 'PublisherService.publishApiKey'
+      })
       throw new ValidationError(
         'Invalid item key format. Expected: <scheme>://<service>/<key>?<query>'
       )
@@ -58,64 +74,35 @@ export class PublisherService {
 
     // Step 1: Generate random API key (64 characters)
     const originalApiKey = generateApiKey()
-    console.log(`🔑 Generated API key for item: ${request.itemKey}`)
+    logger.service.debug('Generated API key', {
+      itemKey: request.itemKey,
+      caller: 'PublisherService.publishApiKey'
+    })
 
     // Step 2: Generate searchable hash (SHA-1 first 8 bytes)
     const searchableHash = generateSearchableHash(originalApiKey)
-    console.log(`🔍 Generated searchable hash: ${searchableHash}`)
+    logger.service.debug('Generated searchable hash', {
+      searchableHash,
+      caller: 'PublisherService.publishApiKey'
+    })
 
     // Step 3: Hash API key using Argon2id
     let hashedApiKey: string
     try {
       hashedApiKey = await hashApiKey(originalApiKey)
-      console.log(`🔒 API key hashed successfully`)
-    } catch (error) {
-      console.error('Hashing failed:', error)
-      throw new Error('Failed to hash API key')
-    }
-
-    // Step 4 & 5: Store in database with duplicate check
-    try {
-      // Check for duplicate (by hashed API key)
-      const exists = await this.repository.exists(hashedApiKey)
-      if (exists) {
-        console.error('Duplicate API key detected')
-        throw new DuplicateError('API key already exists (collision detected)')
-      }
-
-      // Store in database
-      const apiKey = await this.repository.create({
-        searchableHash,
-        hashedApiKey,
-        itemKey: request.itemKey,
-        permission: request.permission,
-        expiresAt,
-        maxUses: request.maxUses
+      logger.service.debug('API key hashed successfully', {
+        caller: 'PublisherService.publishApiKey'
       })
-
-      console.log(`✅ API key published: ${apiKey.id}`)
-
-      // Record metrics
-      metrics.incrementKeysPublished()
-      metrics.recordPublishTime(Date.now() - startTime)
-
-      // Step 6: Return original API key (only once!)
-      return {
-        success: true,
-        data: {
-          apiKey: originalApiKey, // Original key - shown only once!
-          itemKey: apiKey.itemKey,
-          permission: apiKey.permission,
-          publishedAt: apiKey.publishedAt.toISOString(),
-          expiresAt: apiKey.expiresAt.toISOString(),
-          maxUses: apiKey.maxUses
-        }
-      }
     } catch (error) {
       if (error instanceof DuplicateError) {
         throw error
       }
-      console.error('Storage failed:', error)
+      logger.service.error('Storage failed', {
+        error: (error as Error).message,
+        itemKey: request.itemKey,
+        caller: 'PublisherService.publishApiKey'
+      })
+      timer.error(error as Error, { step: 'storage' })
       throw new Error('Failed to store API key')
     }
   }

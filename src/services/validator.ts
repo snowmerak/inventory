@@ -14,6 +14,7 @@ import {
 } from '../types/errors'
 import type { ValidateApiKeyRequest, ValidateApiKeyResponse } from '../types/api'
 import { metrics } from '../monitoring/metrics'
+import { logger, performance } from '../utils/logger'
 
 /**
  * Validator Service - Handles API key validation
@@ -44,18 +45,40 @@ export class ValidatorService {
    * 8. Release lock
    */
   async validateApiKey(request: ValidateApiKeyRequest): Promise<ValidateApiKeyResponse> {
-    const startTime = Date.now()
     const { apiKey } = request
+    
+    logger.service.debug('Validating API key', {
+      caller: 'ValidatorService.validateApiKey'
+    })
+    
+    const timer = performance.start('API key validation', {
+      caller: 'ValidatorService.validateApiKey'
+    })
 
     if (!apiKey || apiKey.length === 0) {
+      logger.service.warn('Empty API key provided', {
+        caller: 'ValidatorService.validateApiKey'
+      })
+      timer.error(new Error('Empty API key'), { step: 'validation' })
       throw new ValidationError('API key is required')
     }
 
     // Step 1: Acquire distributed lock to prevent race conditions
     const lockKey = `validate:${apiKey}`
+    
+    logger.service.debug('Acquiring distributed lock', {
+      lockKey,
+      caller: 'ValidatorService.validateApiKey'
+    })
+    
     const lockValue = await this.lock.acquire(lockKey, 10000) // 10 second TTL
 
     if (!lockValue) {
+      logger.service.error('Failed to acquire lock', {
+        lockKey,
+        caller: 'ValidatorService.validateApiKey'
+      })
+      timer.error(new Error('Lock acquisition failed'), { step: 'lock' })
       throw new LockAcquisitionError('Failed to acquire lock for API key validation')
     }
 
@@ -64,7 +87,10 @@ export class ValidatorService {
       let cachedData = await this.cache.get(apiKey)
 
       if (cachedData) {
-        console.log(`📦 Cache hit for API key`)
+        logger.service.info('Cache hit for API key', {
+          itemKey: cachedData.itemKey,
+          caller: 'ValidatorService.validateApiKey'
+        })
         metrics.incrementCacheHit()
         
         // Verify the API key
@@ -88,8 +114,19 @@ export class ValidatorService {
         await this.repository.incrementUsage(cachedData.hashedApiKey)
 
         // Record metrics
+        const duration = timer.end({
+          source: 'cache',
+          itemKey: cachedData.itemKey,
+          usedCount: cachedData.usedCount + 1
+        })
         metrics.incrementKeysValidated()
-        metrics.recordValidationTime(Date.now() - startTime)
+        metrics.recordValidationTime(duration)
+
+        logger.service.info('API key validated from cache', {
+          itemKey: cachedData.itemKey,
+          usedCount: cachedData.usedCount + 1,
+          caller: 'ValidatorService.validateApiKey'
+        })
 
         return {
           success: true,
@@ -105,21 +142,34 @@ export class ValidatorService {
       }
 
       // Step 3: Cache miss - searching in database
-      console.log(`💾 Cache miss - searching in database`)
+      logger.service.warn('Cache miss - querying database', {
+        caller: 'ValidatorService.validateApiKey'
+      })
       metrics.incrementCacheMiss()
 
       // Generate searchable hash from provided API key (SHA-1 first 8 bytes)
       const searchableHash = generateSearchableHash(apiKey)
-      console.log(`🔍 Searching with hash: ${searchableHash}`)
+      logger.service.debug('Searching with hash', {
+        searchableHash,
+        caller: 'ValidatorService.validateApiKey'
+      })
 
       // Fetch all API keys with matching searchable hash
       const candidates = await this.repository.findBySearchableHash(searchableHash)
       
       if (candidates.length === 0) {
+        logger.service.warn('API key not found', {
+          searchableHash,
+          caller: 'ValidatorService.validateApiKey'
+        })
+        timer.error(new Error('Not found'), { step: 'lookup' })
         throw new NotFoundError('API key not found')
       }
 
-      console.log(`📋 Found ${candidates.length} candidate(s), verifying...`)
+      logger.service.debug('Found candidates, verifying', {
+        candidateCount: candidates.length,
+        caller: 'ValidatorService.validateApiKey'
+      })
 
       // Step 4: Verify API key with Argon2id by iterating candidates
       let validApiKey = null
@@ -132,10 +182,19 @@ export class ValidatorService {
       }
 
       if (!validApiKey) {
+        logger.service.warn('API key verification failed', {
+          candidateCount: candidates.length,
+          caller: 'ValidatorService.validateApiKey'
+        })
+        timer.error(new Error('Invalid key'), { step: 'verification' })
         throw new UnauthorizedError('Invalid API key')
       }
 
-      console.log(`✅ API key verified: ${validApiKey.id}`)
+      logger.service.debug('API key verified', {
+        apiKeyId: validApiKey.id,
+        itemKey: validApiKey.itemKey,
+        caller: 'ValidatorService.validateApiKey'
+      })
 
       // Step 5: Check expiration and usage limits
       if (validApiKey.expiresAt <= new Date()) {
@@ -159,11 +218,20 @@ export class ValidatorService {
         maxUses: validApiKey.maxUses
       })
 
-      console.log(`✅ API key validated and cached`)
+      logger.service.info('API key validated and cached', {
+        itemKey: validApiKey.itemKey,
+        usedCount: updatedKey.usedCount,
+        caller: 'ValidatorService.validateApiKey'
+      })
 
       // Record metrics
+      const duration = timer.end({
+        source: 'database',
+        itemKey: validApiKey.itemKey,
+        usedCount: updatedKey.usedCount
+      })
       metrics.incrementKeysValidated()
-      metrics.recordValidationTime(Date.now() - startTime)
+      metrics.recordValidationTime(duration)
 
       return {
         success: true,
@@ -203,6 +271,9 @@ export class ValidatorService {
       maxUses: apiKeyData.maxUses
     })
 
-    console.log(`✅ Cache primed for API key`)
+    logger.service.info('Cache primed for API key', {
+      itemKey: apiKeyData.itemKey,
+      caller: 'ValidatorService.primeCache'
+    })
   }
 }

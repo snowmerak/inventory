@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client'
 import { ApiKeyRepository } from '../db/api-key-repository'
 import { NotFoundError } from '../types/errors'
+import { logger } from '../utils/logger'
 
 /**
  * Admin Service - Handles administrative operations
@@ -16,101 +17,27 @@ export class AdminService {
    * List all API keys for a specific item
    */
   async listKeysByItem(itemKey: string) {
+    logger.admin.info('Listing keys by item', {
+      itemKey,
+      caller: 'AdminService.listKeysByItem'
+    })
+    
     const keys = await this.repository.findByItemKey(itemKey)
     
-    return {
-      success: true,
-      data: {
-        itemKey,
-        count: keys.length,
-        keys: keys.map(key => ({
-          id: key.id,
-          itemKey: key.itemKey,
-          permission: key.permission,
-          publishedAt: key.publishedAt.toISOString(),
-          expiresAt: key.expiresAt.toISOString(),
-          usedCount: key.usedCount,
-          maxUses: key.maxUses,
-          isExpired: key.expiresAt <= new Date(),
-          isExhausted: key.usedCount >= key.maxUses
-        }))
-      }
-    }
-  }
-
-  /**
-   * Get statistics for a specific API key
-   */
-  async getKeyStats(hashedApiKey: string) {
-    const stats = await this.repository.getStats(hashedApiKey)
+    logger.admin.info('Keys listed', {
+      itemKey,
+      count: keys.length,
+      caller: 'AdminService.listKeysByItem'
+    })
     
-    if (!stats) {
-      throw new NotFoundError('API key not found')
-    }
-
-    return {
-      success: true,
-      data: {
-        usedCount: stats.usedCount,
-        maxUses: stats.maxUses,
-        remainingUses: stats.maxUses - stats.usedCount,
-        expiresAt: stats.expiresAt.toISOString(),
-        isExpired: stats.expiresAt <= new Date(),
-        isExhausted: stats.usedCount >= stats.maxUses,
-        utilizationRate: (stats.usedCount / stats.maxUses) * 100
-      }
-    }
-  }
-
-  /**
-   * Delete expired API keys (manual cleanup)
-   */
-  async cleanupExpired() {
-    const deletedCount = await this.repository.deleteExpired()
+    logger.admin.info('Overall stats retrieved', {
+      totalKeys,
+      expiredKeys,
+      exhaustedKeys,
+      activeKeys: totalKeys - expiredKeys - exhaustedKeys,
+      caller: 'AdminService.getOverallStats'
+    })
     
-    return {
-      success: true,
-      data: {
-        deletedCount,
-        message: `Deleted ${deletedCount} expired API key(s)`
-      }
-    }
-  }
-
-  /**
-   * Get overall statistics
-   */
-  async getOverallStats(prisma: PrismaClient) {
-    const totalKeys = await prisma.apiKey.count()
-    const expiredKeys = await prisma.apiKey.count({
-      where: {
-        expiresAt: {
-          lt: new Date()
-        }
-      }
-    })
-    // MongoDB doesn't support field-to-field comparison in where clause
-    // Need to fetch all keys and filter in application
-    const allKeys = await prisma.apiKey.findMany({
-      select: {
-        usedCount: true,
-        maxUses: true
-      }
-    })
-    const exhaustedKeys = allKeys.filter(k => k.usedCount >= k.maxUses).length
-
-    // Get keys by item (top 10)
-    const keysByItem = await prisma.apiKey.groupBy({
-      by: ['itemKey'],
-      _count: true,
-      orderBy: {
-        _count: {
-          itemKey: 'desc'
-        }
-      },
-      take: 10
-    })
-
     return {
       success: true,
       data: {
@@ -130,9 +57,18 @@ export class AdminService {
    * Revoke an API key (set expiration to now)
    */
   async revokeKey(hashedApiKey: string, prisma: PrismaClient) {
+    logger.admin.info('Revoking API key', {
+      hashedApiKey,
+      caller: 'AdminService.revokeKey'
+    })
+    
     const key = await this.repository.findByHashedKey(hashedApiKey)
     
     if (!key) {
+      logger.admin.warn('API key not found for revocation', {
+        hashedApiKey,
+        caller: 'AdminService.revokeKey'
+      })
       throw new NotFoundError('API key not found')
     }
 
@@ -141,6 +77,13 @@ export class AdminService {
       data: {
         expiresAt: new Date() // Set to now, will be cleaned up by TTL
       }
+    })
+    
+    logger.admin.info('API key revoked', {
+      id: updated.id,
+      itemKey: key.itemKey,
+      revokedAt: updated.expiresAt.toISOString(),
+      caller: 'AdminService.revokeKey'
     })
 
     return {
