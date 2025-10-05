@@ -3,6 +3,8 @@
  * Values are loaded from environment variables (docker-compose, k8s secrets, etc.)
  */
 
+import { logger } from '../utils/logger'
+
 export interface EnvConfig {
   // Server
   port: number
@@ -32,6 +34,8 @@ export interface EnvConfig {
  * Throws an error if required variables are missing
  */
 export function loadEnv(): EnvConfig {
+  logger.app.debug('Loading environment variables', { caller: 'loadEnv' })
+  
   const requiredVars = [
     'PORT',
     'MONGODB_URI',
@@ -43,10 +47,14 @@ export function loadEnv(): EnvConfig {
   const missing = requiredVars.filter(varName => !process.env[varName])
   
   if (missing.length > 0) {
+    logger.app.error('Missing required environment variables', {
+      missing,
+      caller: 'loadEnv'
+    })
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`)
   }
 
-  return {
+  const config = {
     port: parseInt(process.env.PORT || '3030', 10),
     mongodbUri: process.env.MONGODB_URI!,
     redisHost: process.env.REDIS_HOST!,
@@ -58,4 +66,14 @@ export function loadEnv(): EnvConfig {
     rateLimitWindow: parseInt(process.env.RATE_LIMIT_WINDOW || '60000', 10),
     cacheTtl: parseInt(process.env.CACHE_TTL || '900', 10)
   }
+  
+  logger.app.info('Environment variables loaded', {
+    port: config.port,
+    nodeEnv: config.nodeEnv,
+    rateLimitMax: config.rateLimitMax,
+    cacheTtl: config.cacheTtl,
+    caller: 'loadEnv'
+  })
+  
+  return config
 }
