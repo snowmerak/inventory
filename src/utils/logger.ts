@@ -94,6 +94,23 @@ export async function configureLogger(): Promise<void> {
 /**
  * Get logger instances for different parts of the application
  */
+/**
+ * Usage with caller information:
+ * 
+ * @example
+ * logger.service.info('API key published', {
+ *   itemKey: request.itemKey,
+ *   caller: 'PublisherService.publish'
+ * })
+ * 
+ * @example
+ * logger.api.error('Request failed', {
+ *   error: error.message,
+ *   caller: 'validateApiKey',
+ *   function: 'POST /api/keys/validate'
+ * })
+ */
+
 export const logger = {
   app: getLogger(['inventory']),
   db: getLogger(['inventory', 'db']),
